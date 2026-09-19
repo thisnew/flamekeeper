@@ -25,8 +25,8 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 公会介绍 | 公会故事、管理层、规则、荣誉墙 |
 | 成员名册 | 成员列表（按职业着色）+ 引荐结构树形图 |
 | 数据分析 | 职业分布、装等分布、团本进度可视化 |
-| 插件库 | 精选插件推荐、WeakAuras 字符串、配置教程 |
-| 活动日历 | 团本、大秘境、PVP 活动报名 |
+| 工具分享 | 插件库（含 WeakAuras 字符串一键复制）+ 成员发布的攻略分享（可传附件） |
+| 活动日历 | 团本、大秘境、PVP 活动展示（报名写入待实现，见路线图 P2） |
 | 媒体画廊 | 击杀截图、活动合照、视频集锦 |
 | 账号系统 | 邮箱注册 + 邮箱验证、密码登录、入会审批 |
 | 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
@@ -50,24 +50,30 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 
 | 类别 | 选型 | 版本 |
 | --- | --- | --- |
-| 框架 | [Next.js](https://nextjs.org/) (App Router) | 16.3 |
-| 语言 | TypeScript | 5.x |
-| UI 库 | React | 19.x |
-| 样式 | Tailwind CSS | 4.x |
+| 框架 | [Next.js](https://nextjs.org/) (App Router, Turbopack) | 16.3 |
+| 语言 | TypeScript | 7.x |
+| UI 库 | React | 19.3 |
+| 样式 | Tailwind CSS（CSS-first `@theme`） | 4.3 |
 | 数据库 | PostgreSQL | 16 |
-| ORM | Prisma | 6.x |
-| 认证 | NextAuth.js (Auth.js v5) | beta |
+| ORM | Prisma | 6.19 |
+| 认证 | NextAuth.js (Auth.js v5) — JWT session | 5.0.0-beta |
 | 密码哈希 | bcryptjs | 2.x |
 | 表单校验 | Zod | 3.x |
-| 图表 | Recharts | 2.x |
-| 图标 | lucide-react | latest |
+| 图表 | Recharts | 3.x |
+| 发信 | Nodemailer（SMTP） | 7.x |
+| 轻提示 | react-hot-toast | 2.x |
+| 轮播 | Swiper | 12.x |
+| 图标 | lucide-react | 0.562 |
 | 容器化 | Docker + Docker Compose | — |
+
+> Recharts 需为 **3.x**：2.x 在 React 19 下会抛
+> `Super expression must either be null or a function`（详见 `components/analytics/`）。
 
 **架构特点**
 
 - **Next.js 16 App Router**：服务器组件 + 客户端组件混合，SEO 友好，首屏快
 - **Prisma + PostgreSQL**：并发/一致性有保障，dev 与 prod 使用同一套 schema，行为一致
-- **NextAuth.js (JWT session)**：邮箱+密码认证，无外部依赖
+- **NextAuth.js（JWT session）**：邮箱 + 密码认证，**未接线 Prisma adapter**，会话不落库
 - **Tailwind CSS 4 自定义主题**：基于 WoW 设计 Token（金色/橙色/职业色），统一视觉
 - **Canvas 粒子背景**：火焰余烬动画，营造艾泽拉斯氛围
 
@@ -78,53 +84,68 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 ```
 flamekeeper/
 ├── prisma/
-│   ├── schema.prisma            # 数据库 schema（参考 PLAN.md 数据模型）
-│   ├── seed.mjs                 # 初始化 admin 账号 + 邮件配置 + 默认数据
-│   ├── init-db.mjs              # 容器启动时建表（无需 Prisma CLI）
-│   ├── init.sql                 # 由 schema 生成（构建时产物，不入库）
-├── public/                      # 静态资源
+│   ├── schema.prisma            # 数据库 schema（17 个模型）
+│   ├── seed.mjs                 # 初始 admin + 系统设置 + 欢迎公告（幂等、只补缺失值）
+│   ├── demo-data.mjs            # 演示成员 + 3 层引荐树（npm run db:demo）
+│   ├── init-db.mjs              # 容器启动时建表（镜像内无 Prisma CLI）
+│   ├── init.sql                 # 由 schema 生成（构建期产物，不入库）
+│   ├── secrets.mjs              # AES-256-GCM 加解密（seed 与 web 共用一份实现）
+│   ├── db-url.mjs               # DATABASE_URL 生成 / 百分号编码
+│   ├── db-sync.mjs              # 从 POSTGRES_* 重新派生 DATABASE_URL
+│   └── predev.mjs               # `npm run dev` 前置：建表 + 补初始数据
+├── public/
+│   └── uploads/                 # 成员附件（<=10MB，运行期写入）
 ├── src/
 │   ├── app/
-│   │   ├── api/                 # API 路由（auth/register, posts, addons 等）
-│   │   ├── auth/                # 登录、注册、忘记密码
-│   │   ├── admin/               # 管理后台（官员/管理员）
-│   │   ├── news/[slug]/         # 文章详情
-│   │   ├── guide/               # 入会指南
-│   │   ├── about/               # 公会介绍
-│   │   ├── roster/              # 成员名册
-│   │   ├── analytics/           # 数据分析
-│   │   ├── addons/              # 插件库
+│   │   ├── api/                 # API 路由（auth / posts / events / upload / health ...）
+│   │   ├── admin/               # 管理后台（posts, applications, roster, addons,
+│   │   │                        #   events, gallery, settings, mail）
+│   │   ├── auth/                # login, register, verify-email,
+│   │   │                        #   forgot-password（UI 占位，见路线图 P2）
+│   │   ├── apply/               # 入会申请表单
+│   │   ├── pending/             # 待审批成员落地页
+│   │   ├── news/[slug]/         # 信息发布列表 + 详情
+│   │   ├── tools/               # 工具分享（插件库 + 成员分享）
+│   │   ├── roster/              # 成员名册 + 引荐结构树
+│   │   ├── analytics/           # 数据分析（Recharts）
 │   │   ├── events/              # 活动日历
 │   │   ├── gallery/             # 媒体画廊
-│   │   ├── contact/             # 联系我们
-│   │   ├── profile/             # 个人中心
-│   │   ├── layout.tsx           # 全局布局（含 Header/Footer/粒子背景）
+│   │   ├── guide/  about/  contact/  profile/
+│   │   ├── layout.tsx           # 全局布局（Header/Footer/粒子背景，服务端取 session）
 │   │   ├── page.tsx             # 首页
-│   │   ├── globals.css          # Tailwind 全局样式与 WoW 主题
-│   │   └── not-found.tsx        # 404 页面
+│   │   └── not-found.tsx        # 404
 │   ├── components/
-│   │   ├── layout/              # Header、Footer、SceneBackground
-│   │   ├── providers.tsx        # SessionProvider + Toaster
-│   │   └── admin/               # 管理后台占位组件
+│   │   ├── admin/               # 后台各模块的客户端组件
+│   │   ├── analytics/           # 图表（"use client"，隔离 recharts）
+│   │   ├── auth/  guild/  home/  news/  tools/  ui/
+│   │   ├── layout/              # Header、Footer、UserMenu、SceneBackground
+│   │   └── providers.tsx        # SessionProvider + Toaster
 │   ├── lib/
 │   │   ├── prisma.ts            # Prisma 单例
 │   │   ├── auth.ts              # NextAuth 配置
-│   │   ├── utils.ts             # cn()、日期格式化、WoW 职业色映射
+│   │   ├── roles.ts             # 角色判定纯函数（服务端安全）
+│   │   ├── page-guard.ts        # requireMember / requireOfficer / requireAdmin
+│   │   ├── mailer.ts            # SMTP 发信（含 smtp_pass 解密）
+│   │   ├── secrets.ts           # 加解密的类型化再导出（实现见 prisma/secrets.mjs）
+│   │   ├── auth-utils.ts        # 密码哈希、邮箱规范化
 │   │   ├── validations.ts       # Zod schema
-│   │   └── auth-utils.ts        # 角色权限工具函数
-│   ├── styles/
-│   │   └── globals.css          # WoW 设计 Token + Tailwind
-│   └── types/                   # TypeScript 类型
+│   │   └── utils.ts             # cn()、日期格式化、WoW 职业色映射
+│   └── styles/
+│       └── globals.css          # WoW 设计 Token（Tailwind 4 @theme）+ 全局样式
+├── .github/workflows/
+│   └── docker-publish.yml       # CI：构建镜像 → 推送阿里云 ACR
 ├── Dockerfile                   # 多阶段构建（builder + runner）
-├── docker-compose.yml           # 一键启动 + 数据卷持久化
-├── .dockerignore
-├── .env.example
-├── package.json
+├── docker-compose.yml           # 部署：拉取 ACR 镜像 + 数据卷持久化
+├── docker-compose.build.yml     # 可选 override：在部署机上本地构建
+├── .dockerignore  .env.example  package.json
 ├── next.config.ts               # standalone output
-├── tailwind.config / postcss.config
+├── postcss.config.mjs           # Tailwind 4（无需 tailwind.config）
 ├── PLAN.md                      # 项目定案（来自原始需求）
 └── README.md                    # 本文件
 ```
+
+> 注：Tailwind 4 采用 CSS-first 配置，主题 Token 全部写在
+> `src/styles/globals.css` 的 `@theme` 中，**没有** `tailwind.config.*` 文件。
 
 ---
 
@@ -163,7 +184,7 @@ npm install
 # 3. 初始化环境变量
 cp .env.example .env
 
-# 4. 启动 PostgreSQL（compose 里的 db 服务，监听 127.0.0.1:5432）
+# 4. 启动 PostgreSQL（compose 里的 db 服务，宿主机 5432 端口）
 docker compose up -d db
 
 # 5. 启动开发服务器（自动建表 + 写入初始数据）
@@ -474,6 +495,125 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 
 ---
 
+## 🔧 常见部署问题
+
+按症状查。每一条都对应本项目实际踩过的坑，带根因解释。
+
+### 部署很慢 / 一直卡在 "Building…"
+
+**症状**：Portainer 日志反复出现 `Building`、`npm ci`、`npx prisma generate`，
+一轮要 5–15 分钟，还可能失败重试。
+
+**根因**：`docker-compose.yml` 用的是 `build:` 而非 `image:`，
+Portainer 于是在部署机上从源码重新构建，把 ACR 里已构建好的镜像完全忽略了。
+
+**修复**：确认 compose 是 `image:` 模式（本项目默认已是）。核对方法：
+
+```bash
+grep -n "image:\|build:" docker-compose.yml
+# 期望只看到 image:（build: 应只出现在 docker-compose.build.yml 里）
+```
+
+### 构建卡在 `npx prisma generate`（超时 / ECONNRESET）
+
+**根因**：`Dockerfile` 的 `npm ci --ignore-scripts` 跳过了 `@prisma/engines`
+的 postinstall（引擎下载），于是 `npx prisma generate` 必须在**构建期**
+从 `binaries.prisma.sh` 现下载约 40MB 引擎二进制。该域名在部分网络下很慢或不可达。
+
+**修复**（择一）：
+- **推荐**：不要在部署机上构建 —— 交给 CI（`Actions` 的网络正常），部署机只拉镜像
+- 必须本地构建时，用国内镜像源：
+  ```bash
+  docker compose -f docker-compose.yml -f docker-compose.build.yml \
+    build --build-arg PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma
+  ```
+
+### `Warning: buildx isn't installed`
+
+**无害**。这只在「需要 build」时才有影响。当前是拉镜像模式，不碰 buildx。
+若你看到它**并且**在 build，说明 stack 用的还是旧版 compose。
+
+### 拉取报 `manifest unknown`
+
+**根因**：ACR 里还没有这个 tag —— 通常是 GitHub Actions 没跑成功。
+
+**排查**：仓库 `Actions` 页看最近一次 run 是否绿色。若失败，多半是这两个 Secret 没配：
+
+| Secret | 说明 |
+| --- | --- |
+| `ALIYUN_ACR_USERNAME` | ACR 凭证用户名 |
+| `ALIYUN_ACR_PASSWORD` | **ACR 控制台设置的固定密码**，不是阿里云登录密码 |
+
+### 拉取报 `unauthorized: authentication required`
+
+**根因**：ACR 个人版是**私有**仓库，Portainer 未登录。
+
+**修复**：`Registries` → `Add registry` → `Custom registry`：
+
+| 字段 | 值 |
+| --- | --- |
+| Registry URL | `crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com` |
+| Username / Password | 同上面的 GitHub Secrets |
+
+保存后点 **Test / Browse** 验证 —— 能列出 `thisnew/flamekeeper` 才算生效。
+
+### 容器一直 unhealthy，日志报 `Connecting to localhost:3000 ([::1]:3000) Connection refused`
+
+**症状**：健康检查一直失败，但浏览器访问完全正常。
+
+**根因**：Alpine 的 musl 解析器按 RFC 6724 会优先把 `localhost` 解析成 IPv6 的
+`::1`，而 Next.js 绑定的是 `HOSTNAME=0.0.0.0`（**仅 IPv4**），`::1` 上无人监听。
+
+**修复**：健康检查必须写 `127.0.0.1`，不能写 `localhost`（本项目已修正）。
+在容器内可自行验证：
+
+```bash
+docker exec flamekeeper-web cat /etc/hosts
+docker exec flamekeeper-web wget -qO- --spider "http://[::1]:3000/api/health"      # 应失败
+docker exec flamekeeper-web wget -qO- "http://127.0.0.1:3000/api/health"           # 应返回 200
+```
+
+### 登录报错 / 页面打开但没有任何数据
+
+**根因**：数据库表不存在，或表存在但没有初始数据（没有 admin 账号、没有设置项）。
+
+**修复**：本地 `npm run dev` 会自动 `db push` + `seed`；若手工部署，执行：
+
+```bash
+npm run db:push && npm run db:seed
+# 或直接重跑初始化
+npm run db:seed
+```
+
+验证：
+
+```bash
+npx prisma studio        # 应看到 17 张表 + 1 个 ADMIN 账号
+```
+
+### 数据库连接失败：`invalid port number in database URL`
+
+**根因**：`DATABASE_URL` 里的密码含 `# @ : / ?` 等 URL 保留字符却**没做百分号编码**，
+`#` 会被当成 fragment 分隔符，把后面的 `@host:port` 一起截断。
+
+**修复**：
+
+```bash
+npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
+```
+
+常用编码：`#`→`%23`　`@`→`%40`　`:`→`%3A`　`/`→`%2F`　`!`→`%21`
+
+### 邮件发送失败：`535 authentication failed`
+
+**根因**：163/126 用的是**授权码**，不是登录密码；且授权码**区分大小写**。
+
+**修复**：到「后台 → 系统设置 → 邮件服务」重填授权码，再点「测试连接」。
+注意 `smtp_pass` 是加密存储的，**更换 `AUTH_SECRET` 会导致旧密文无法解密**，
+必须重新填一次。
+
+---
+
 ## 📋 脚本命令
 
 | 命令 | 说明 |
@@ -500,7 +640,7 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 
 - [x] 项目脚手架（Next.js 16 + TS + Tailwind 4）
 - [x] WoW 主题系统（金色/职业色/火焰粒子）
-- [x] 数据库 schema（15 个模型，参考 PLAN 数据模型）
+- [x] 数据库 schema（17 个模型，参考 PLAN 数据模型）
 - [x] 账号系统：邮箱+密码、bcrypt 哈希
 - [x] 入会注册流程（含角色资料、自动生成申请编号）
 - [x] 首页（Hero、统计、新闻预览、公会介绍 CTA）
@@ -536,8 +676,13 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 ### 🚧 待办（P2 — 进阶）
 
 - [ ] 密码重置邮件（忘记密码流程）
+  —— 现状：`/auth/forgot-password` 只有 **UI 占位**（表单不可提交，页面自带
+  「将在未来版本启用」提示）；尚无 reset token 模型与发信接口。
+  登录页已链接到该页，所以不是死链但功能为空。
 - [ ] 活动报名（带替补机制）
-- [ ] 附件可选 S3 / 对象存储适配器
+  —— 现状：`EventSignup` 模型与字段已就绪，活动列表只读展示了报名者；
+  **没有报名/退出的写入接口**。
+- [ ] 附件可选 S3 / 对象存储适配器（当前为本地磁盘 `public/uploads`）
 - [ ] WCL / Raider.IO 数据同步
 - [ ] KOOK 机器人通知
 - [ ] 多语言（i18n）
@@ -576,21 +721,38 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 
 ## 📝 数据模型一览
 
-参考 PLAN.md 第九节，主要模型：
+共 **17 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
 
-- `User` —— 账号、邮箱、密码、角色、状态
+**账号与鉴权（NextAuth 所需）**
+
+- `User` —— 账号、邮箱、密码哈希、角色、状态、邮箱验证时间、引荐人 `referredById`
+- `Account` / `Session` / `VerificationToken` —— NextAuth 标准适配器表。
+  **当前未被使用**：会话走 JWT（`strategy: "jwt"`），未接线 `PrismaAdapter`，
+  保留在 schema 中是为了将来接入 OAuth / 数据库会话时无需迁移。
+
+**资料与入会**
+
 - `Profile` —— 用户档案
-- `Application` —— 入会申请（含申请编号、审核状态）
-- `Post` —— 信息发布（分类/置顶/标签）
+- `Application` —— 入会申请（申请编号、审核状态、推荐人）
+- `Character` —— 魔兽角色（13 职业着色，关联用户）
+
+**内容**
+
+- `Post` —— 信息发布（分类 / 置顶 / 标签 / 附件）
 - `Page` —— 静态页面（公会介绍等）
-- `Character` —— 魔兽角色（关联用户）
+- `Addon` —— 插件与成员分享（分类 / WA 字符串 / 附件）
+- `Media` —— 图片与视频
+
+**活动与分析**
+
+- `Event` + `EventSignup` —— 活动与报名（报名写入未实现，见路线图 P2）
 - `RaidProgress` —— 团本进度
 - `AnalyticsSnapshot` —— 分析快照
-- `Addon` —— 插件（分类/WA 字符串）
-- `Event` + `EventSignup` —— 活动与报名
-- `Media` —— 图片与视频
-- `Setting` —— 系统设置（KOOK 链接、微信二维码等）
-- `AuditLog` —— 管理操作日志
+
+**系统**
+
+- `Setting` —— 系统设置（KOOK 链接、微信二维码、SMTP 等；`smtp_pass` 加密存储）
+- `AuditLog` —— 管理操作日志（审批、改密、群发邮件等留痕）
 
 ---
 
@@ -604,11 +766,20 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 
 ### 开发约定
 
-- TypeScript strict 模式
-- 优先使用 Server Components，必要时使用 `"use client"`
-- 不使用 Lombok（这是 Java 约定，但 TS 项目中请用 TypeScript 原生类型）
-- 业务异常抛 `Error`，在 API 路由统一处理
-- API 返回统一 JSON 格式：`{ success: boolean, data?: T, error?: string }`
+- **TypeScript strict 模式**：提交前跑 `npx tsc --noEmit`（本仓库要求 0 错误）
+- **优先 Server Components**：仅在需要交互 / 浏览器 API 时加 `"use client"`。
+  图表（Recharts）与轮播（Swiper）已隔离到独立客户端组件，避免污染服务端树。
+- **角色判断用纯函数**：`lib/roles.ts` 不引 `next-auth/react`，保证服务端可直接调用；
+  页面级门禁统一走 `lib/page-guard.ts` 的 `requireMember()` / `requireOfficer()` /
+  `requireAdmin()`（未登录 → `/auth/login`，非成员 → `/pending`）。
+- **API 响应**：成功 `NextResponse.json({ success: true })`，失败
+  `NextResponse.json({ error: "…" }, { status })`。
+  注意：目前**没有**统一的响应包装函数，各路由手写，形状靠约定而非类型强制。
+- **需要落库的密钥必须加密**：走 `lib/secrets.ts`（实现在 `prisma/secrets.mjs`），
+  不要明文写进 `Setting` 表。
+- **schema 变更流程**：改 `prisma/schema.prisma` → `npm run db:generate`。
+  建表/同步由 `predev` 与容器 `CMD` 自动完成，**不要手写 DDL**
+  （`prisma/init.sql` 是构建期生成物，不入库）。
 
 ---
 
