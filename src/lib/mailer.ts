@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { prisma } from "@/lib/prisma";
+import { decryptSecret, encryptSecret, isEncrypted } from "@/lib/secrets";
 
 export interface MailConfig {
   enabled: boolean;
@@ -51,13 +52,39 @@ export async function getMailConfig(): Promise<MailConfig> {
   const enabled = truthy(map[MAIL_SETTING_KEYS.enabled]);
   const secure = truthy(map[MAIL_SETTING_KEYS.secure]);
 
+  // smtp_pass is stored encrypted; transparently upgrade legacy plaintext.
+  const storedPass = map[MAIL_SETTING_KEYS.pass] || "";
+  let pass: string;
+  if (!storedPass) {
+    pass = DEFAULTS.pass;
+  } else if (isEncrypted(storedPass)) {
+    pass = decryptSecret(storedPass);
+  } else {
+    // Legacy plaintext row (e.g. seeded before encryption existed):
+    // use it now, persist the encrypted form in the background.
+    // Best-effort: a missing AUTH_SECRET must not break mail sending.
+    pass = storedPass;
+    try {
+      const upgraded = encryptSecret(storedPass);
+      prisma.setting
+        .update({ where: { key: MAIL_SETTING_KEYS.pass }, data: { value: upgraded } })
+        .then(() => console.log("[mailer] smtp_pass 已从明文升级为加密存储"))
+        .catch((e) => console.error("[mailer] smtp_pass 加密升级失败:", e?.message ?? e));
+    } catch (e) {
+      console.error(
+        "[mailer] 无法加密 smtp_pass（AUTH_SECRET 未设置？），本次仍以明文使用:",
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+
   return {
     enabled: enabled ?? DEFAULTS.enabled,
     host: map[MAIL_SETTING_KEYS.host] || DEFAULTS.host,
     port: Number(map[MAIL_SETTING_KEYS.port] || DEFAULTS.port),
     secure: secure ?? DEFAULTS.secure,
     user: map[MAIL_SETTING_KEYS.user] || DEFAULTS.user,
-    pass: map[MAIL_SETTING_KEYS.pass] || DEFAULTS.pass,
+    pass: pass || DEFAULTS.pass,
     fromName: map[MAIL_SETTING_KEYS.fromName] || DEFAULTS.fromName,
   };
 }

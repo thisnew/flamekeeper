@@ -287,8 +287,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 保存后可用「测试连接」和「发送测试邮件」验证；配置也可通过环境变量注入（`SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM_NAME`），
 环境变量在数据库中无对应设置时生效。
 
+> 🔐 **授权码加密存储**：`smtp_pass` 写入数据库时用 `AUTH_SECRET` 派生的密钥做
+> **AES-256-GCM** 加密（格式 `v1:<iv>:<tag>:<ciphertext>`）。拿到数据库文件也看不到明文。
+> 旧版本遗留的明文记录会在首次读取时自动升级为密文。
+> 注意：**更换 `AUTH_SECRET` 会导致已存密文无法解密**，需在后台重新填写一次授权码。
+
 **群发**：`管理后台 → 邮件群发` —— 选择收件人群组（注册用户 / 公会成员 / 官员 / 管理员），
-可勾选「仅发送给已验证邮箱的账号」，发送结果会列出成功/失败明细（单次上限 300 人）。
+可勾选「仅发送给已验证邮箱的账号」，发送结果会列出成功/失败明细（单次上限 300 人，可用 `MAIL_BULK_MAX_RECIPIENTS` 调整）。
 
 ### 方式三：Portainer / 容器面板部署
 
@@ -367,6 +372,10 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 > DATABASE_URL="postgresql://flamekeeper:flamekeeper%232026%21@192.168.3.80:5432/flamekeeper?schema=public"
 > ```
 > 常用编码：`#`→`%23`　`@`→`%40`　`:`→`%3A`　`/`→`%2F`　`?`→`%3F`　`!`→`%21`
+>
+> **更省事的做法**：密码只在 `.env` 的 `POSTGRES_PASSWORD` 维护一处，
+> 改完执行 `npm run db:sync` —— 脚本会重新百分号编码、写回 `DATABASE_URL`、
+> 校验可解析性，并把原 `.env` 备份为 `.env.bak`。
 
 **注意**：`db` 服务默认把 5432 绑定在 `127.0.0.1`，仅本机可连（避免数据库暴露公网）。
 本地开发连它用 `localhost:5432`；若需从局域网其他机器连接开发库，把 `docker-compose.yml` 里的
@@ -386,6 +395,7 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 | `npm run db:studio` | 打开 Prisma Studio（GUI 数据查看） |
 | `npm run db:seed` | 填充种子数据（初始 admin + 邮件配置） |
 | `npm run db:url` | 生成 URL 编码正确的 `DATABASE_URL`（密码含特殊字符时用） |
+| `npm run db:sync` | 从 `POSTGRES_*` 重新派生并写回 `DATABASE_URL`（改密码后跑一次） |
 | `npm run db:demo` | 创建演示成员（引荐树可见） |
 | `npm run db:demo:clean` | 清理演示成员 |
 

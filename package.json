@@ -12,6 +12,7 @@
     "db:studio": "npx prisma studio",
     "db:seed": "node prisma/seed.mjs",
     "db:url": "node prisma/db-url.mjs",
+    "db:sync": "node prisma/db-sync.mjs",
     "db:demo": "node prisma/demo-data.mjs",
     "db:demo:clean": "node prisma/demo-data.mjs --clean"
   },

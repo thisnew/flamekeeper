@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/roles";
+import { encryptSecret } from "@/lib/secrets";
 
 // Keys safe to expose publicly (also used by the container healthcheck)
 const PUBLIC_KEYS = new Set([
@@ -52,13 +53,21 @@ export async function POST(req: NextRequest) {
     }
 
     await prisma.$transaction(
-      entries.map(([key, value]) =>
-        prisma.setting.upsert({
+      entries.map(([key, value]) => {
+        // Secrets are encrypted at rest. An empty string is a deliberate
+        // "clear this value" and is stored as-is; the masked placeholder
+        // "********" was already filtered out above so it can never
+        // overwrite a real secret.
+        let stored = String(value ?? "");
+        if (key === "smtp_pass" && stored) {
+          stored = encryptSecret(stored);
+        }
+        return prisma.setting.upsert({
           where: { key },
-          update: { value: String(value ?? "") },
-          create: { key, value: String(value ?? "") },
-        })
-      )
+          update: { value: stored },
+          create: { key, value: stored },
+        });
+      })
     );
 
     return NextResponse.json({ success: true });
