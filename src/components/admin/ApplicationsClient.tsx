@@ -21,7 +21,7 @@ interface Application {
   status: string;
   officerNote: string | null;
   createdAt: string | Date;
-  user: { email: string; name: string | null; status: string };
+  user: { email: string; name: string | null; status: string; emailVerified: string | Date | null };
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -104,6 +104,11 @@ export default function ApplicationsClient({ initial }: { initial: Application[]
                   <span className="font-bold text-lg text-text-primary">{app.characterName}</span>
                   <span className="text-xs text-text-muted">{app.server}</span>
                   <span className={`text-sm font-bold ${status.color}`}>● {status.label}</span>
+                  {!app.user.emailVerified && (
+                    <span className="text-xs px-2 py-0.5 bg-wow-orange/10 text-wow-orange border border-wow-orange/30 rounded">
+                      邮箱未验证
+                    </span>
+                  )}
                   <button
                     onClick={() => handleDelete(app.id, app.characterName)}
                     disabled={acting === app.id}

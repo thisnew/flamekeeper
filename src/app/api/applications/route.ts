@@ -13,7 +13,7 @@ export async function GET() {
 
     const list = await prisma.application.findMany({
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-      include: { user: { select: { id: true, email: true, name: true, status: true } } },
+      include: { user: { select: { id: true, email: true, name: true, status: true, emailVerified: true } } },
     });
     return NextResponse.json({ applications: list });
   } catch (error) {

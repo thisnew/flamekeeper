@@ -42,7 +42,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new LoginError("wrong_password");
         }
 
-        if (user.status === "PENDING_EMAIL") {
+        // Email verification is mandatory before login, regardless of role/pending state.
+        // Admins created by the seeder are verified at creation time.
+        if (!user.emailVerified) {
           throw new LoginError("email_unverified");
         }
 
