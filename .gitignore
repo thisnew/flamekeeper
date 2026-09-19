@@ -4,11 +4,13 @@ out/
 build/
 dist/
 
-# env
+# env files — ignore EVERY variant (.env, .env.local, .env.production,
+# .env.flamekeeper, .env.bak, ...). Only the template is tracked.
+# A file like `.env.flamekeeper` previously slipped past the narrower
+# patterns and got staged with real secrets — keep this broad.
 .env
-.env.local
-.env.production
-.env.*.local
+.env.*
+!.env.example
 
 # database
 *.db

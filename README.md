@@ -348,12 +348,25 @@ docker compose exec db psql -U flamekeeper -d flamekeeper -c "\dt"
 
 **使用外部 PostgreSQL**
 
-默认 `DATABASE_URL` 指向 compose 内的 `db` 服务。若要连自建/云数据库，直接覆盖该变量即可
-（`schema.prisma` 已是 `provider = "postgresql"`，无需改 schema）：
+默认 `DATABASE_URL` 指向 compose 内的 `db` 服务。若要连自建/云数据库（例如 LAN 上的 `192.168.3.80`），
+直接覆盖该变量即可（`schema.prisma` 已是 `provider = "postgresql"`，无需改 schema）：
 
 ```env
 DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public"
 ```
+
+> ⚠️ **密码含特殊字符必须 URL 编码**，否则会报
+> `invalid port number in database URL`（因为 `#` 是 URL 的 fragment 分隔符，会把后面整段截断）。
+>
+> 用内置生成器避免手算：
+> ```bash
+> npm run db:url -- --host 192.168.3.80 --user flamekeeper --pass 'flamekeeper#2026!' --show
+> ```
+> 输出可直接粘贴进 `.env`：
+> ```
+> DATABASE_URL="postgresql://flamekeeper:flamekeeper%232026%21@192.168.3.80:5432/flamekeeper?schema=public"
+> ```
+> 常用编码：`#`→`%23`　`@`→`%40`　`:`→`%3A`　`/`→`%2F`　`?`→`%3F`　`!`→`%21`
 
 **注意**：`db` 服务默认把 5432 绑定在 `127.0.0.1`，仅本机可连（避免数据库暴露公网）。
 本地开发连它用 `localhost:5432`；若需从局域网其他机器连接开发库，把 `docker-compose.yml` 里的
@@ -372,6 +385,9 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 | `npm run db:push` | 推送 schema 到数据库 |
 | `npm run db:studio` | 打开 Prisma Studio（GUI 数据查看） |
 | `npm run db:seed` | 填充种子数据（初始 admin + 邮件配置） |
+| `npm run db:url` | 生成 URL 编码正确的 `DATABASE_URL`（密码含特殊字符时用） |
+| `npm run db:demo` | 创建演示成员（引荐树可见） |
+| `npm run db:demo:clean` | 清理演示成员 |
 
 ---
 
