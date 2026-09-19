@@ -9,6 +9,7 @@ export const registerSchema = z.object({
   email: z.string().email("请输入有效的邮箱地址"),
   password: z.string().min(6, "密码至少6位"),
   confirmPassword: z.string(),
+  nickname: z.string().min(2, "昵称至少2个字符").max(20, "昵称最长20个字符"),
   characterName: z.string().min(2, "角色名至少2个字符").max(12),
   server: z.string().min(1, "请选择服务器"),
   faction: z.enum(["Alliance", "Horde"], { message: "请选择阵营" }),

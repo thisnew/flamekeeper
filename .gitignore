@@ -33,3 +33,5 @@ npm-debug.log*
 # Temporary
 tmp/
 temp/
+# TypeScript incremental build cache
+*.tsbuildinfo

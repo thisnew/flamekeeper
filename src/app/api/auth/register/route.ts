@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email, password, characterName, server, faction, class: wowClass, spec, itemLevel, raidExperience, playableTimes, kookId, wechatId } = validated.data;
+    const { email, password, nickname, characterName, server, faction, class: wowClass, spec, itemLevel, raidExperience, playableTimes, kookId, wechatId } = validated.data;
 
     // Check existing user
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       data: {
         email,
         passwordHash,
+        name: nickname,
         role: "USER",
         status: "PENDING_APPROVAL", // Skip email verification in MVP
       },

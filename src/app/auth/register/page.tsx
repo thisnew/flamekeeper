@@ -15,6 +15,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    nickname: "",
     characterName: "",
     server: "",
     faction: "Alliance" as "Alliance" | "Horde",
@@ -105,9 +106,18 @@ export default function RegisterPage() {
 
             <hr className="border-border-default" />
 
-            {/* Character */}
+            {/* Nickname & Character */}
             <div>
-              <label className="block text-sm text-text-secondary mb-1.5">角色名 *</label>
+              <label className="block text-sm text-text-secondary mb-1.5">
+                昵称 * <span className="text-xs text-text-muted">（社区称呼，如「老火焰」「艾泽拉斯之子」）</span>
+              </label>
+              <input type="text" name="nickname" value={form.nickname} onChange={handleChange} required minLength={2} maxLength={20}
+                className="w-full px-4 py-2.5 bg-bg-secondary border border-border-default rounded text-text-primary focus:border-wow-gold focus:outline-none"
+                placeholder="2-20个字符" />
+            </div>
+
+            <div>
+              <label className="block text-sm text-text-secondary mb-1.5">角色名 * <span className="text-xs text-text-muted">（游戏内角色名）</span></label>
               <input type="text" name="characterName" value={form.characterName} onChange={handleChange} required minLength={2} maxLength={12}
                 className="w-full px-4 py-2.5 bg-bg-secondary border border-border-default rounded text-text-primary focus:border-wow-gold focus:outline-none" />
             </div>
