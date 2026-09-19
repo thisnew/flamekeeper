@@ -15,7 +15,8 @@ RUN npx prisma generate
 RUN npx prisma migrate diff \
       --from-empty \
       --to-schema-datamodel prisma/schema.prisma \
-      --script > prisma/init.sql
+      --script > prisma/init.sql \
+    && test -s prisma/init.sql
 RUN npm run build
 
 # Stage 2: Production runtime

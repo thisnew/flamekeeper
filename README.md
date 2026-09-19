@@ -262,6 +262,39 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 3. 设置环境变量
 4. 部署即可
 
+### 方式四：CI/CD 自动构建（GitHub Actions → 阿里云 ACR）
+
+工作流：`.github/workflows/docker-publish.yml`
+
+**触发条件**：推送到 `main`、推送 `v*` tag、或在 Actions 页面手动触发。
+
+**推送目标**：
+```
+crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew/flamekeeper:latest
+crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew/flamekeeper:git-<commit-sha>
+crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew/flamekeeper:<分支名|tag>
+```
+
+**启用前置步骤**：在 GitHub 仓库 `Settings → Secrets and variables → Actions` 添加两个 Secret：
+
+| Secret | 说明 |
+| --- | --- |
+| `ALIYUN_ACR_USERNAME` | 阿里云容器镜像服务的登录用户名（阿里云账号名或 ACR 访问凭证用户名） |
+| `ALIYUN_ACR_PASSWORD` | 对应密码（ACR 控制台设置的固定密码，**不是**登录阿里云的密码） |
+
+**要点说明**（与 cms-light 保持一致）：
+
+- 使用 `docker/build-push-action@v6` + `buildx`（`driver: docker-container`）
+- **`provenance: false` / `sbom: false`** —— 阿里云 ACR 个人版不支持 OCI attestation 媒体类型，开启会导致推送失败
+- 构建缓存用 GitHub Actions cache（`type=gha,mode=max`），因此 workflow 需要 `actions: write` 权限
+- 镜像为 `linux/amd64`；若要跑在 ARM 设备上，需自行加 `platforms:` 并改用多架构构建
+
+**服务器拉取运行**：
+```bash
+docker login crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com -u <用户名>
+docker pull crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew/flamekeeper:latest
+```
+
 ### 切换到 PostgreSQL（可选）
 
 如需多人协作或更高并发，可在 `prisma/schema.prisma` 修改 `datasource`：
