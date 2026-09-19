@@ -36,8 +36,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-# bcryptjs is used by the runtime seeder; ensure it is present
+# bcryptjs + nodemailer are required at runtime by the seeder / mailer
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
+COPY --from=builder /app/node_modules/nodemailer ./node_modules/nodemailer
 
 # Create data directory for SQLite and uploads directory for member attachments
 RUN mkdir -p /app/data /app/public/uploads && \
