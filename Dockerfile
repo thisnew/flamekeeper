@@ -10,7 +10,13 @@ RUN npm ci --ignore-scripts
 # Copy source
 COPY . .
 
-# Generate Prisma client, emit the SQLite DDL, then build
+# NEXT_PUBLIC_APP_URL is baked into the build (used by metadataBase,
+# OpenGraph absolute URLs). Override with --build-arg NEXT_PUBLIC_APP_URL=...
+# Defaults to the public deployment URL baked into the image.
+ARG NEXT_PUBLIC_APP_URL=https://www.h83c4578f.nyat.app
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+
+# Generate Prisma client, emit the PostgreSQL DDL, then build
 RUN npx prisma generate
 RUN npx prisma migrate diff \
       --from-empty \

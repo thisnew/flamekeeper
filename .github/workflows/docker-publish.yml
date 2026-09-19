@@ -16,6 +16,10 @@ env:
   REGISTRY: crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew
   REGISTRY_HOST: crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com
   IMAGE: flamekeeper
+  # Public origin baked into the image at build time (used by Next.js
+  # for metadataBase + OpenGraph absolute URLs). Change if the deployment
+  # domain ever moves.
+  PUBLIC_URL: https://www.h83c4578f.nyat.app
 
 on:
   push:
@@ -61,6 +65,9 @@ jobs:
           sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # NEXT_PUBLIC_APP_URL is read at build time (metadataBase, OG).
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ env.PUBLIC_URL }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE }}:git-${{ github.sha }}

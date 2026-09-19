@@ -207,21 +207,42 @@ Docker 自动完成以下操作：
 
 #### 自定义环境变量
 
-在 `docker-compose.yml` 同目录创建 `.env` 文件（或修改 `docker-compose.yml`）：
+发布域名：**`https://www.h83c4578f.nyat.app`**（已写入 `docker-compose.yml` 与 `.env.example` 的默认值）。
+若域名变更或运行在局域网，**仅需覆盖 `.env` 的对应变量**，无需修改源码。
+
+在 `docker-compose.yml` 同目录创建 `.env`：
 
 ```env
+# 鉴权 + 域名（必须与反向代理 / NAT 映射一致）
 AUTH_SECRET=<随机生成的 32 位字符串>
-AUTH_URL=https://your-domain.com
-NEXT_PUBLIC_APP_URL=https://your-domain.com
+AUTH_URL=https://www.h83c4578f.nyat.app
+NEXT_PUBLIC_APP_URL=https://www.h83c4578f.nyat.app
 
-# PostgreSQL
+# PostgreSQL（容器内）
 POSTGRES_USER=flamekeeper
 POSTGRES_PASSWORD=<强密码>
 POSTGRES_DB=flamekeeper
 
-# 如需连外部 PostgreSQL，直接覆盖 DATABASE_URL：
-# DATABASE_URL=postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
+# LAN 数据库（本例 192.168.3.80）—— 覆盖 DATABASE_URL，跳过容器内 db 服务
+DATABASE_URL=postgresql://flamekeeper:<DB_PW>@192.168.3.80:5432/flamekeeper?schema=public
+# → 启动前禁用 compose 里的 db 服务（注释或注释掉），
+#   否则 app 仍会被 depends_on: db 健康检查阻塞
+
+# 初始 admin 账号
+ADMIN_EMAIL=flamekeeper_admin@163.com
+ADMIN_PASSWORD=<change-this-strong-password>
+
+# SMTP（163 使用授权码，不是登录密码）
+SMTP_HOST=smtp.163.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=flamekeeper_admin@163.com
+SMTP_PASS=<授权码>
+SMTP_FROM_NAME=Eternal Flame 守焰者
 ```
+
+**数据库目标服务器**：`192.168.3.80`（如上覆盖 `DATABASE_URL` 指向该 LAN 主机）。
+本机开发时默认连 compose 内的 `db` 服务（`127.0.0.1:5432`）。
 
 **生成 AUTH_SECRET**：
 ```bash
