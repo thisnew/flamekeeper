@@ -93,6 +93,40 @@ export interface SendResult {
   error?: string;
 }
 
+/**
+ * Turn raw SMTP/nodemailer errors into an actionable Chinese hint.
+ * The original message is appended so nothing is hidden from the admin.
+ */
+export function explainMailError(raw: string): string {
+  const s = raw || "";
+  const hint = (text: string) => `${text}（原始错误：${s}）`;
+
+  if (/535|authentication failed|Invalid login/i.test(s)) {
+    return hint(
+      "认证失败：163/126 邮箱必须使用「授权码」而非登录密码。请到邮箱网页版 → 设置 → POP3/SMTP/IMAP，" +
+        "开启 SMTP 服务并生成授权码（通常为 16 位纯字母数字），填入「密码 / 授权码」后保存再测试"
+    );
+  }
+  if (/534|^530/i.test(s)) {
+    return hint("认证被拒绝：请确认已开启邮箱的 SMTP 服务，并使用授权码");
+  }
+  if (/ENOTFOUND|getaddrinfo/i.test(s)) {
+    return hint("无法解析 SMTP 主机名：请检查「SMTP 主机」是否填写正确");
+  }
+  if (/ETIMEDOUT|ECONNECTION|ESOCKET|ECONNREFUSED|timeout/i.test(s)) {
+    return hint(
+      "无法连接 SMTP 服务器：请检查主机/端口/加密方式（465 用 SSL，587 用 STARTTLS），以及服务器能否访问外网"
+    );
+  }
+  if (/550|553|User not found|Mailbox not found/i.test(s)) {
+    return hint("收件地址被服务器拒绝：请确认收件人邮箱存在且允许接收");
+  }
+  if (/EENVELOPE|Sender address rejected/i.test(s)) {
+    return hint("发件/收件地址无效：请确认「发信账号」与邮箱地址一致");
+  }
+  return s;
+}
+
 export async function sendMail(opts: {
   to: string | string[];
   subject: string;
@@ -119,7 +153,7 @@ export async function sendMail(opts: {
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("sendMail error:", msg);
-    return { ok: false, error: msg };
+    return { ok: false, error: explainMailError(msg) };
   }
 }
 
@@ -134,7 +168,7 @@ export async function verifyMailConfig(): Promise<SendResult> {
     return { ok: true };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    return { ok: false, error: msg };
+    return { ok: false, error: explainMailError(msg) };
   }
 }
 
