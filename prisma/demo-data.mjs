@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 const CLEAN = process.argv.includes("--clean");
-const DEMO_DOMAIN = "demo.local";
+const DEMO_DOMAIN = process.env.DEMO_EMAIL_DOMAIN || "demo.local";
 
 // [nickname, email-local, role, referrer email-local | null, characterName, class, spec, role, ilvl]
 const PEOPLE = [

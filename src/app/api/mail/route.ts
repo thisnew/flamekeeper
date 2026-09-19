@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/roles";
 import { sendMail, verifyMailConfig, mailShell, isMailConfigured } from "@/lib/mailer";
 
-const MAX_RECIPIENTS = 300;
+const MAX_RECIPIENTS = Number(process.env.MAIL_BULK_MAX_RECIPIENTS) || 300;
 
 const testSchema = z.object({
   action: z.literal("test"),

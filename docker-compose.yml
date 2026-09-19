@@ -48,10 +48,14 @@ services:
       # cookies + email verification links resolve to this domain.
       - AUTH_URL=${AUTH_URL:-https://www.h83c4578f.nyat.app}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-https://www.h83c4578f.nyat.app}
-      # Database — defaults to the local pg service inside this compose.
-      # For a LAN-hosted database (e.g. 192.168.3.80), override via .env:
-      #   DATABASE_URL=postgresql://flamekeeper:<PW>@192.168.3.80:5432/flamekeeper?schema=public
-      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-flamekeeper}:${POSTGRES_PASSWORD:-flamekeeper_pg_pw}@db:5432/${POSTGRES_DB:-flamekeeper}?schema=public}
+      # Database — read from .env to point at a LAN PostgreSQL
+      # (e.g. DATABASE_URL=postgresql://flamekeeper:<PW>@192.168.3.80:5432/flamekeeper?schema=public).
+      # The fallback below targets the pg service bundled inside this compose.
+      #
+      # We avoid nested ${VAR:-...} defaults because some compose versions
+      # do not re-expand inner variables, producing "invalid port number"
+      # parse errors. Hard-code the literal string here; use .env to override.
+      - DATABASE_URL=${DATABASE_URL:-postgresql://flamekeeper:flamekeeper_pg_pw@db:5432/flamekeeper?schema=public}
       # 初始 admin 账号（首次初始化数据库时使用）
       - ADMIN_EMAIL=${ADMIN_EMAIL:-flamekeeper_admin@163.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-change-this-strong-password}

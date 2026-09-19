@@ -10,11 +10,15 @@ const prisma = new PrismaClient();
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "flamekeeper_admin@163.com").toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "flamekeeper#110";
 
+// SMTP defaults to the admin email (so 163 sender matches from-address).
+// The actual password MUST be set explicitly via SMTP_PASS — we never
+// fall back to ADMIN_PASSWORD (that would write the admin login
+// password into the smtp_pass Setting row).
 const SMTP_HOST = process.env.SMTP_HOST || "smtp.163.com";
 const SMTP_PORT = process.env.SMTP_PORT || "465";
 const SMTP_SECURE = process.env.SMTP_SECURE || "true";
 const SMTP_USER = process.env.SMTP_USER || ADMIN_EMAIL;
-const SMTP_PASS = process.env.SMTP_PASS || ADMIN_PASSWORD;
+const SMTP_PASS = process.env.SMTP_PASS || "";
 const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || "Eternal Flame 守焰者";
 
 async function main() {
