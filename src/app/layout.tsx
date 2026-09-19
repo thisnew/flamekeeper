@@ -4,6 +4,7 @@ import Providers from "@/components/providers";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import SceneBackground from "@/components/layout/SceneBackground";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: {
@@ -21,11 +22,23 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Fetch session server-side so Header renders correct auth UI in SSR
+  const session = await auth();
+  const sessionUser = session?.user
+    ? {
+        id: (session.user as any).id,
+        email: session.user.email,
+        name: session.user.name,
+        role: (session.user as any).role,
+        status: (session.user as any).status,
+      }
+    : null;
+
   return (
     <html lang="zh-CN">
       <head>
@@ -40,7 +53,7 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-bg-primary">
         <Providers>
           <SceneBackground />
-          <Header />
+          <Header user={sessionUser} />
           <main className="flex-1 relative z-10 page-enter">{children}</main>
           <Footer />
         </Providers>

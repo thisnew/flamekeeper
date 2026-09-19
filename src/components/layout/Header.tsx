@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Menu, X, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Menu, X, Flame, ChevronDown, User, LogOut, Shield, Settings } from "lucide-react";
+import UserMenu from "@/components/layout/UserMenu";
 
 const navItems = [
   { href: "/", label: "首页" },
@@ -18,17 +18,25 @@ const navItems = [
   { href: "/gallery", label: "画廊" },
 ];
 
-export default function Header() {
-  const { data: session, status } = useSession();
+interface SessionUser {
+  id?: string;
+  email?: string | null;
+  name?: string | null;
+  role?: string;
+  status?: string;
+}
+
+export default function Header({
+  user,
+}: {
+  user: SessionUser | null;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-
-  const user = session?.user as any;
-  const isOfficer = user?.role === "OFFICER" || user?.role === "ADMIN";
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -70,71 +78,9 @@ export default function Header() {
             ))}
           </nav>
 
-          {/* Auth area */}
+          {/* Auth area (server-rendered session) */}
           <div className="hidden lg:flex items-center gap-2">
-            {status === "loading" ? (
-              <div className="w-20 h-8 bg-bg-card animate-pulse rounded" />
-            ) : session ? (
-              <div className="relative">
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded border border-border-gold bg-bg-card hover:bg-bg-card-hover transition-colors"
-                >
-                  <User className="w-4 h-4 text-wow-gold" />
-                  <span className="text-sm text-text-primary">{user?.name || user?.email}</span>
-                  <ChevronDown className={cn("w-3 h-3 text-text-muted transition-transform", userMenuOpen && "rotate-180")} />
-                </button>
-
-                {userMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-bg-card border border-border-default rounded shadow-card py-1 z-20">
-                      <Link
-                        href="/profile"
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-text-secondary hover:text-wow-gold hover:bg-bg-card-hover"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <User className="w-4 h-4" /> 个人中心
-                      </Link>
-                      {isOfficer && (
-                        <Link
-                          href="/admin"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-text-secondary hover:text-wow-gold hover:bg-bg-card-hover"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <Shield className="w-4 h-4" /> 管理后台
-                        </Link>
-                      )}
-                      <hr className="border-border-default my-1" />
-                      <button
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          signOut({ callbackUrl: "/" });
-                        }}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-wow-red hover:bg-bg-card-hover"
-                      >
-                        <LogOut className="w-4 h-4" /> 退出登录
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/auth/login"
-                  className="px-4 py-1.5 text-sm text-text-secondary hover:text-wow-gold transition-colors"
-                >
-                  登录
-                </Link>
-                <Link
-                  href="/auth/register"
-                  className="px-4 py-1.5 text-sm bg-wow-gold text-black font-medium rounded hover:bg-wow-gold-bright transition-colors"
-                >
-                  加入公会
-                </Link>
-              </div>
-            )}
+            <UserMenu user={user} scrolled={scrolled} />
           </div>
 
           {/* Mobile toggle */}
@@ -162,7 +108,7 @@ export default function Header() {
               </Link>
             ))}
             <div className="pt-3 pb-1">
-              {session ? (
+              {user ? (
                 <div className="flex flex-col gap-2">
                   <Link
                     href="/profile"
@@ -171,7 +117,7 @@ export default function Header() {
                   >
                     个人中心
                   </Link>
-                  {isOfficer && (
+                  {(user.role === "OFFICER" || user.role === "ADMIN") && (
                     <Link
                       href="/admin"
                       className="text-sm text-wow-gold py-2"
@@ -180,15 +126,12 @@ export default function Header() {
                       管理后台
                     </Link>
                   )}
-                  <button
-                    onClick={() => {
-                      setMobileOpen(false);
-                      signOut({ callbackUrl: "/" });
-                    }}
-                    className="text-sm text-wow-red py-2 text-left"
+                  <a
+                    href="/api/auth/signout"
+                    className="text-sm text-wow-red py-2"
                   >
                     退出登录
-                  </button>
+                  </a>
                 </div>
               ) : (
                 <div className="flex gap-2">
