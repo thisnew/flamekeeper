@@ -15,6 +15,16 @@ services:
       - AUTH_URL=${AUTH_URL:-http://localhost:3000}
       - DATABASE_URL=file:/app/data/prod.db
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      # Initial admin account (used when the DB is first seeded)
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-flamekeeper_admin@163.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-change-this-strong-password}
+      # Outbound mail (SMTP) — 163 uses an 授权码, not the login password
+      - SMTP_HOST=${SMTP_HOST:-smtp.163.com}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_SECURE=${SMTP_SECURE:-true}
+      - SMTP_USER=${SMTP_USER:-flamekeeper_admin@163.com}
+      - SMTP_PASS=${SMTP_PASS:-your-smtp-auth-code}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Eternal Flame 守焰者}
     volumes:
       # Persist SQLite database
       - flamekeeper-data:/app/data

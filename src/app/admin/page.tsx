@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
-import { Shield, FileText, Users, Puzzle, CalendarDays, Image, Settings, BarChart3, ClipboardCheck } from "lucide-react";
+import { Shield, FileText, Users, Puzzle, CalendarDays, Image, Settings, BarChart3, ClipboardCheck, Mail } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "管理后台",
@@ -24,7 +24,8 @@ export default async function AdminPage() {
     { href: "/admin/events", icon: CalendarDays, label: "活动管理", desc: "创建和管理公会活动" },
     { href: "/admin/gallery", icon: Image, label: "画廊管理", desc: "上传和管理图片视频" },
     ...(user.role === "ADMIN" ? [
-      { href: "/admin/settings", icon: Settings, label: "系统设置", desc: "KOOK 链接、微信二维码等" },
+      { href: "/admin/mail", icon: Mail, label: "邮件群发", desc: "SMTP 测试与会员群发邮件" },
+      { href: "/admin/settings", icon: Settings, label: "系统设置", desc: "KOOK 链接、微信二维码、SMTP 等" },
     ] : []),
   ];
 

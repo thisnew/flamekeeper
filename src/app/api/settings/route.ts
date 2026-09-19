@@ -1,12 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { isAdminRole } from "@/lib/roles";
+
+// Keys safe to expose publicly (also used by the container healthcheck)
+const PUBLIC_KEYS = new Set([
+  "site_title",
+  "site_description",
+  "guild_name",
+  "guild_chinese_name",
+  "guild_server",
+  "guild_faction",
+  "kook_invite_url",
+  "wechat_qr_image",
+  "recruitment_status",
+  "officer_emails",
+]);
+
+// Placeholder shown in the UI — never persist this over the real secret
+const MASKED = "********";
 
 export async function GET() {
   try {
-    const settings = await prisma.setting.findMany();
+    const rows = await prisma.setting.findMany();
     const map: Record<string, string> = {};
-    for (const s of settings) {
-      map[s.key] = s.value;
+    for (const s of rows) {
+      if (PUBLIC_KEYS.has(s.key)) map[s.key] = s.value;
     }
     return NextResponse.json({ settings: map });
   } catch (error) {
@@ -17,8 +36,21 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const entries = Object.entries(body) as Array<[string, string]>;
+    const session = await auth();
+    const user = session?.user as any;
+    if (!user?.id || !isAdminRole(user.role)) {
+      return NextResponse.json({ error: "仅管理员可修改设置" }, { status: 403 });
+    }
+
+    const body = (await req.json()) as Record<string, unknown>;
+    const entries = Object.entries(body).filter(
+      ([, value]) => String(value ?? "") !== MASKED
+    );
+
+    if (entries.length === 0) {
+      return NextResponse.json({ success: true });
+    }
+
     await prisma.$transaction(
       entries.map(([key, value]) =>
         prisma.setting.upsert({
@@ -28,6 +60,7 @@ export async function POST(req: NextRequest) {
         })
       )
     );
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Settings POST:", error);

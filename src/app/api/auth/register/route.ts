@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
-import { generateSlug } from "@/lib/utils";
+import { isMailConfigured, sendMail, verificationEmailHtml } from "@/lib/mailer";
+
+const TOKEN_TTL_HOURS = 24;
+
+function appUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
+async function createVerificationToken(email: string): Promise<string> {
+  const token = randomBytes(32).toString("hex");
+  const expires = new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1000);
+
+  // Clear previous tokens for this identifier, then issue a fresh one
+  await prisma.verificationToken.deleteMany({ where: { identifier: email } });
+  await prisma.verificationToken.create({
+    data: { identifier: email, token, expires },
+  });
+  return token;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +38,6 @@ export async function POST(req: NextRequest) {
     const { password, nickname, characterName, server, faction, class: wowClass, spec, itemLevel, raidExperience, playableTimes, kookId, wechatId } = validated.data;
     const email = validated.data.email.trim().toLowerCase();
 
-    // Check existing user
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return NextResponse.json({ error: "该邮箱已被注册" }, { status: 409 });
@@ -34,11 +52,10 @@ export async function POST(req: NextRequest) {
         passwordHash,
         name: nickname,
         role: "USER",
-        status: "PENDING_APPROVAL", // Skip email verification in MVP
+        status: "PENDING_EMAIL", // must verify email before login
       },
     });
 
-    // Create application
     await prisma.application.create({
       data: {
         userId: user.id,
@@ -57,9 +74,45 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Issue + send email verification link
+    const token = await createVerificationToken(email);
+    const verifyUrl = `${appUrl()}/auth/verify-email?token=${token}`;
+
+    let mailSent = false;
+    let mailError: string | undefined;
+
+    if (await isMailConfigured()) {
+      const res = await sendMail({
+        to: email,
+        subject: "【Eternal Flame】请确认你的邮箱",
+        html: verificationEmailHtml({
+          nickname,
+          verifyUrl,
+          expiresHours: TOKEN_TTL_HOURS,
+          appUrl: appUrl(),
+        }),
+      });
+      mailSent = res.ok;
+      mailError = res.error;
+    } else {
+      mailError = "邮件服务尚未配置，请联系公会官员";
+    }
+
+    if (!mailSent) {
+      // Account is created regardless; surface a clear reason so the user can retry.
+      console.warn("Verification email not sent:", mailError, verifyUrl);
+      return NextResponse.json({
+        success: true,
+        mailSent: false,
+        message: `注册成功，但验证邮件发送失败（${mailError || "未知原因"}）。请联系官员或在登录页重新发送验证邮件。`,
+        applicationCode,
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      message: "注册成功！请等待官员审核你的入会申请。",
+      mailSent: true,
+      message: "注册成功！我们已向你的邮箱发送确认邮件，请点击邮件中的链接完成验证。",
       applicationCode,
     });
   } catch (error) {

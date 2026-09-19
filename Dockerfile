@@ -10,8 +10,12 @@ RUN npm ci --ignore-scripts
 # Copy source
 COPY . .
 
-# Generate Prisma client and build
+# Generate Prisma client, emit the SQLite DDL, then build
 RUN npx prisma generate
+RUN npx prisma migrate diff \
+      --from-empty \
+      --to-schema-datamodel prisma/schema.prisma \
+      --script > prisma/init.sql
 RUN npm run build
 
 # Stage 2: Production runtime
@@ -32,6 +36,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# bcryptjs is used by the runtime seeder; ensure it is present
+COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
 # Create data directory for SQLite and uploads directory for member attachments
 RUN mkdir -p /app/data /app/public/uploads && \
@@ -44,5 +50,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Run migrations and start
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node server.js"]
+# Bootstrap schema (no Prisma CLI in this image), seed defaults, then start
+CMD ["sh", "-c", "node prisma/init-db.mjs && node prisma/seed.mjs && node server.js"]

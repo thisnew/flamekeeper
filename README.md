@@ -66,7 +66,9 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 flamekeeper/
 ├── prisma/
 │   ├── schema.prisma            # 数据库 schema（参考 PLAN.md 数据模型）
-│   ├── seed.ts                  # 初始化 admin 账号与默认数据
+│   ├── seed.mjs                 # 初始化 admin 账号 + 邮件配置 + 默认数据
+│   ├── init-db.mjs              # 容器启动时建表（无需 Prisma CLI）
+│   ├── init.sql                 # 由 schema 生成的 SQLite DDL
 │   └── dev.db                   # SQLite 数据库（开发环境）
 ├── public/                      # 静态资源
 ├── src/
@@ -152,7 +154,7 @@ cp .env.example .env
 
 # 4. 初始化数据库 + 种子数据
 npm run db:push       # 创建表
-npm run db:seed       # 创建默认 admin 账号
+npm run db:seed       # 创建初始 admin 账号 + 邮件配置
 
 # 5. 启动开发服务器
 npm run dev
@@ -160,8 +162,8 @@ npm run dev
 
 打开浏览器访问 http://localhost:3000
 
-> **默认管理员账号**：`admin@eternalflame.gg` / `admin123`
-> 首次登录后请立即修改密码（在「个人中心」→「修改密码」功能上线后）。
+> **初始管理员账号**：`flamekeeper_admin@163.com` / `flamekeeper#110`
+> 该 163 邮箱同时作为系统发信账号（SMTP）。**首次登录后请立即修改密码，并到邮件服务商申请「授权码」替换 SMTP 密码**。
 
 ### 方式二：Docker 部署（推荐生产）
 
@@ -199,18 +201,46 @@ NEXT_PUBLIC_APP_URL=https://your-domain.com
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-> ⚠️ **生产环境务必修改默认 admin 密码！** 进入容器执行：
+> ⚠️ **生产环境务必修改初始 admin 密码！** 推荐直接在网页「个人中心 → 修改密码」操作；
+> 也可进入容器执行（无需 tsx）：
 > ```bash
-> docker compose exec flamekeeper npx tsx -e "
+> docker compose exec flamekeeper node --input-type=module -e "
 >   import { PrismaClient } from '@prisma/client';
->   import { hash } from 'bcryptjs';
+>   import bcrypt from 'bcryptjs';
 >   const p = new PrismaClient();
->   const h = await hash('新密码', 12);
->   await p.user.update({ where: { email: 'admin@eternalflame.gg' }, data: { passwordHash: h } });
+>   const h = await bcrypt.hash('新密码', 12);
+>   await p.user.update({ where: { email: 'flamekeeper_admin@163.com' }, data: { passwordHash: h } });
 >   console.log('密码已更新');
 >   await p.\$disconnect();
 > "
 > ```
+
+### 邮件服务（SMTP 发信）
+
+系统通过 **SMTP** 发信，用于两件事：
+
+1. **注册邮箱验证** —— 用户注册后必须点击邮件中的链接完成确认，才能登录并进入审批流程；
+2. **会员群发** —— 管理员在「管理后台 → 邮件群发」按角色给成员群发通知。
+
+**配置入口**：`管理后台 → 系统设置 → 邮件服务`
+
+| 字段 | 说明 | 163 示例 |
+| --- | --- | --- |
+| SMTP 主机 | 发信服务器 | `smtp.163.com` |
+| 端口 | 465=SSL，587=STARTTLS | `465` |
+| 发信账号 | 完整邮箱地址 | `flamekeeper_admin@163.com` |
+| 密码 / 授权码 | **163 必须填「授权码」**，不是登录密码 | 在网易邮箱设置中开启 SMTP 后获取 |
+| 加密方式 | SSL/TLS 或 STARTTLS | SSL/TLS |
+| 发件人显示名 | 邮件里显示的名字 | `Eternal Flame 守焰者` |
+
+> 💡 163/126 邮箱需要在网页版「设置 → POP3/SMTP/IMAP」中**开启 SMTP 服务并生成授权码**，
+> 然后把授权码填入「密码 / 授权码」字段。直接用登录密码会认证失败。
+
+保存后可用「测试连接」和「发送测试邮件」验证；配置也可通过环境变量注入（`SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM_NAME`），
+环境变量在数据库中无对应设置时生效。
+
+**群发**：`管理后台 → 邮件群发` —— 选择收件人群组（注册用户 / 公会成员 / 官员 / 管理员），
+可勾选「仅发送给已验证邮箱的账号」，发送结果会列出成功/失败明细（单次上限 300 人）。
 
 ### 方式三：Portainer / 容器面板部署
 
@@ -247,7 +277,7 @@ DATABASE_URL="postgresql://user:pass@host:5432/flamekeeper?schema=public"
 | `npm run db:generate` | 生成 Prisma Client |
 | `npm run db:push` | 推送 schema 到数据库 |
 | `npm run db:studio` | 打开 Prisma Studio（GUI 数据查看） |
-| `npm run db:seed` | 填充种子数据 |
+| `npm run db:seed` | 填充种子数据（初始 admin + 邮件配置） |
 
 ---
 
@@ -277,21 +307,24 @@ DATABASE_URL="postgresql://user:pass@host:5432/flamekeeper?schema=public"
 - [x] **申请审批完整流程**：通过/拒绝/需补充信息（官员操作、自动升级用户角色、写入审计日志）
 - [x] **文章编辑器**：Markdown 编辑 + 封面图 + 分类 + 置顶 + 标签 + 发布/下线切换
 - [x] **Recharts 真实数据图表**：职能饼图、职业饼图、装等柱状图（自动从成员数据生成）
-- [x] **插件库管理**：WA 字符串复制、下载链接、Markdown 教程渲染
-- [x] **插件详情页**：`/addons/[slug]` 含一键复制 WA 字符串
+- [x] **工具分享专栏**：`/tools` 双标签（插件分享 + 成员发布的「其他分享」）
+- [x] **成员发布分享**：审批通过的成员可发布 Markdown 分享并上传 ≤10MB 附件
+- [x] **插件详情页**：`/tools/addon/[slug]` 含一键复制 WA 字符串
 - [x] **活动管理**：创建/删除活动（带起止时间、名额、地点、类型）
 - [x] **媒体画廊管理**：图床 URL 上传、相册分类、缩略图预览
 - [x] **成员名册 CRUD**：添加/编辑/删除角色（管理员可批量录入）
-- [x] **系统设置**：KOOK 邀请链接、微信二维码、招募状态、官员邮箱等
+- [x] **系统设置**：KOOK 邀请链接、微信二维码、招募状态、官员邮箱、SMTP 等
 - [x] **修改密码**：个人中心可改密（bcrypt 加固）
 - [x] **个人申请查询**：用户登录后可查看自己的入会申请状态
-- [x] **审计日志**：审批、修改密码等关键操作留痕
+- [x] **审计日志**：审批、修改密码、群发邮件等关键操作留痕
+- [x] **邮件服务**：SMTP 发信配置后台 + 注册邮箱验证（未验证不可登录）+ 会员群发
+- [x] **入会申请删除**：官员可删除申请记录（带审计日志）
 
 ### 🚧 待办（P2 — 进阶）
 
-- [ ] 邮件通知（注册结果、密码重置）
+- [ ] 密码重置邮件（忘记密码流程）
 - [ ] 活动报名（带替补机制）
-- [ ] 文件上传（本地存储 + S3 适配器）
+- [ ] 附件可选 S3 / 对象存储适配器
 - [ ] WCL / Raider.IO 数据同步
 - [ ] KOOK 机器人通知
 - [ ] 多语言（i18n）
@@ -305,9 +338,10 @@ DATABASE_URL="postgresql://user:pass@host:5432/flamekeeper?schema=public"
 部署到生产环境前，请务必完成以下检查：
 
 - [ ] 修改 `AUTH_SECRET` 为随机 32+ 位字符串
-- [ ] 修改默认 admin 账号密码
+- [ ] 修改初始 admin 账号密码（`flamekeeper_admin@163.com` 的默认密码）
+- [ ] 更换 SMTP 密码为邮箱服务商提供的**授权码**，不要使用邮箱登录密码
 - [ ] 如启用 HTTPS，配置反向代理（Nginx / Caddy）
-- [ ] 定期备份 SQLite 数据库卷：`docker volume ls` → 备份 `flamekeeper-data`
+- [ ] 定期备份数据卷：`flamekeeper-data`（数据库）与 `flamekeeper-uploads`（成员附件）
 - [ ] 配置防火墙，仅暴露 80/443 端口
 - [ ] （可选）启用 Cloudflare 等 CDN 防 DDoS
 
