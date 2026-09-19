@@ -166,15 +166,25 @@ cp .env.example .env
 # 4. 启动 PostgreSQL（compose 里的 db 服务，监听 127.0.0.1:5432）
 docker compose up -d db
 
-# 5. 初始化数据库 + 种子数据
-npm run db:push       # 建表（Prisma 直连 PG）
-npm run db:seed       # 创建初始 admin 账号 + 邮件配置
+# 5. 写入种子数据（初始 admin 账号 + 邮件配置）
+npm run db:seed
 
 # 6. 启动开发服务器
 npm run dev
 ```
 
 打开浏览器访问 http://localhost:3000
+
+> 💡 **建表是自动的**：`npm run dev` 会先执行 `predev` → `prisma db push`，
+> 自动建表 / 同步表结构（幂等，只做增量变更，不会删数据）。
+> 因此新克隆的仓库不需要手动跑 `db:push`。
+>
+> 建表失败会**中止启动**并给出排查清单（数据库不可达 / URL 编码错误）。
+> 只想起前端预览：`SKIP_DB_PUSH=1 npm run dev`
+> （Windows PowerShell：`$env:SKIP_DB_PUSH=1; npm run dev`）
+>
+> 注意：只有 Docker 与本地 `npm run dev/start` 会自动建表；
+> 单独执行 `next dev` 或 `node server.js` 不会。
 
 > **初始管理员账号**：`flamekeeper_admin@163.com` / `flamekeeper#110`
 > 该 163 邮箱同时作为系统发信账号（SMTP）。**首次登录后请立即修改密码，并到邮件服务商申请「授权码」替换 SMTP 密码**。
@@ -387,9 +397,9 @@ DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 
 | 命令 | 说明 |
 | --- | --- |
-| `npm run dev` | 启动开发服务器（端口 3000） |
+| `npm run dev` | 启动开发服务器（**先自动 `prisma db push` 建表/同步表结构**） |
 | `npm run build` | 生产构建（standalone output） |
-| `npm start` | 启动生产服务器 |
+| `npm start` | 启动生产服务器（同样先自动建表） |
 | `npm run db:generate` | 生成 Prisma Client |
 | `npm run db:push` | 推送 schema 到数据库 |
 | `npm run db:studio` | 打开 Prisma Studio（GUI 数据查看） |

@@ -5,8 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
+    "predev": "node prisma/predev.mjs",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
+    "prestart": "node prisma/predev.mjs",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
     "db:studio": "npx prisma studio",
