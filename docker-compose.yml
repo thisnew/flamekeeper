@@ -15,8 +15,9 @@ services:
       - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
     volumes:
       - flamekeeper-pgdata:/var/lib/postgresql/data
-    # 仅绑定本机，避免把数据库暴露到公网；
-    # 如需从局域网其他机器连开发库，改成 "5432:5432" 并自行加防火墙规则
+    # ⚠ 已放开到所有网卡（0.0.0.0:5432），局域网内其他机器可直连。
+    #   若只想本机访问，改回 "127.0.0.1:5432:5432"。
+    #   公网可达的主机请务必配合防火墙，并确保 POSTGRES_PASSWORD 为强密码。
     ports:
       - "5432:5432"
     healthcheck:
