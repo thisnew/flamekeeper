@@ -41,9 +41,9 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder /app/node_modules/nodemailer ./node_modules/nodemailer
 
-# Create data directory for SQLite and uploads directory for member attachments
-RUN mkdir -p /app/data /app/public/uploads && \
-    chown -R nextjs:nodejs /app/data /app/public/uploads
+# Uploads directory for member attachments (PostgreSQL data lives in its own volume)
+RUN mkdir -p /app/public/uploads && \
+    chown -R nextjs:nodejs /app/public/uploads
 
 USER nextjs
 

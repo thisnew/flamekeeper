@@ -54,7 +54,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 语言 | TypeScript | 5.x |
 | UI 库 | React | 19.x |
 | 样式 | Tailwind CSS | 4.x |
-| 数据库 | SQLite（生产可用 Postgres 替换） | — |
+| 数据库 | PostgreSQL | 16 |
 | ORM | Prisma | 6.x |
 | 认证 | NextAuth.js (Auth.js v5) | beta |
 | 密码哈希 | bcryptjs | 2.x |
@@ -66,7 +66,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 **架构特点**
 
 - **Next.js 16 App Router**：服务器组件 + 客户端组件混合，SEO 友好，首屏快
-- **Prisma + SQLite**：零运维成本部署；schema 设计兼容 Postgres，可一键切换
+- **Prisma + PostgreSQL**：并发/一致性有保障，dev 与 prod 使用同一套 schema，行为一致
 - **NextAuth.js (JWT session)**：邮箱+密码认证，无外部依赖
 - **Tailwind CSS 4 自定义主题**：基于 WoW 设计 Token（金色/橙色/职业色），统一视觉
 - **Canvas 粒子背景**：火焰余烬动画，营造艾泽拉斯氛围
@@ -81,8 +81,7 @@ flamekeeper/
 │   ├── schema.prisma            # 数据库 schema（参考 PLAN.md 数据模型）
 │   ├── seed.mjs                 # 初始化 admin 账号 + 邮件配置 + 默认数据
 │   ├── init-db.mjs              # 容器启动时建表（无需 Prisma CLI）
-│   ├── init.sql                 # 由 schema 生成的 SQLite DDL
-│   └── dev.db                   # SQLite 数据库（开发环境）
+│   ├── init.sql                 # 由 schema 生成（构建时产物，不入库）
 ├── public/                      # 静态资源
 ├── src/
 │   ├── app/
@@ -163,13 +162,15 @@ npm install
 
 # 3. 初始化环境变量
 cp .env.example .env
-# 默认 SQLite 文件位于 prisma/dev.db
 
-# 4. 初始化数据库 + 种子数据
-npm run db:push       # 创建表
+# 4. 启动 PostgreSQL（compose 里的 db 服务，监听 127.0.0.1:5432）
+docker compose up -d db
+
+# 5. 初始化数据库 + 种子数据
+npm run db:push       # 建表（Prisma 直连 PG）
 npm run db:seed       # 创建初始 admin 账号 + 邮件配置
 
-# 5. 启动开发服务器
+# 6. 启动开发服务器
 npm run dev
 ```
 
@@ -177,6 +178,9 @@ npm run dev
 
 > **初始管理员账号**：`flamekeeper_admin@163.com` / `flamekeeper#110`
 > 该 163 邮箱同时作为系统发信账号（SMTP）。**首次登录后请立即修改密码，并到邮件服务商申请「授权码」替换 SMTP 密码**。
+
+> 💡 想快速看到「成员名册 → 结构图」的引荐树效果，可执行 `npm run db:demo`
+> （创建 9 个演示成员，密码统一 `demo12345`；清理用 `npm run db:demo:clean`）
 
 ### 方式二：Docker 部署（推荐生产）
 
@@ -194,10 +198,11 @@ docker compose logs -f flamekeeper
 ```
 
 Docker 自动完成以下操作：
-- 多阶段构建，镜像体积小（约 200MB）
-- 启动时自动执行 `prisma db push`（首次启动会建表）
-- 数据库文件通过 named volume `flamekeeper-data` 持久化
-- 健康检查 + 自动重启
+- **PostgreSQL 16** 作为独立 `db` 容器，数据存于 named volume `flamekeeper-pgdata`
+- 应用等待 `db` 健康检查通过后才启动（`depends_on: condition: service_healthy`）
+- 启动时由 `prisma/init-db.mjs` 建表（DDL 在构建阶段由 schema 生成）、`prisma/seed.mjs` 写入初始数据
+- 成员附件存于 `flamekeeper-uploads` 卷
+- 应用健康检查 + 自动重启
 
 #### 自定义环境变量
 
@@ -207,6 +212,14 @@ Docker 自动完成以下操作：
 AUTH_SECRET=<随机生成的 32 位字符串>
 AUTH_URL=https://your-domain.com
 NEXT_PUBLIC_APP_URL=https://your-domain.com
+
+# PostgreSQL
+POSTGRES_USER=flamekeeper
+POSTGRES_PASSWORD=<强密码>
+POSTGRES_DB=flamekeeper
+
+# 如需连外部 PostgreSQL，直接覆盖 DATABASE_URL：
+# DATABASE_URL=postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public
 ```
 
 **生成 AUTH_SECRET**：
@@ -295,21 +308,34 @@ docker login crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com -u <用�
 docker pull crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew/flamekeeper:latest
 ```
 
-### 切换到 PostgreSQL（可选）
+### 数据库运维（PostgreSQL）
 
-如需多人协作或更高并发，可在 `prisma/schema.prisma` 修改 `datasource`：
+**备份 / 恢复**
+```bash
+# 备份
+docker compose exec -T db pg_dump -U flamekeeper flamekeeper > backup_$(date +%F).sql
 
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+# 恢复
+docker compose exec -T db psql -U flamekeeper -d flamekeeper < backup_2026-01-01.sql
 ```
 
-并修改 `.env`：
+**连接数据库排查**
+```bash
+docker compose exec db psql -U flamekeeper -d flamekeeper -c "\dt"
+```
+
+**使用外部 PostgreSQL**
+
+默认 `DATABASE_URL` 指向 compose 内的 `db` 服务。若要连自建/云数据库，直接覆盖该变量即可
+（`schema.prisma` 已是 `provider = "postgresql"`，无需改 schema）：
+
 ```env
-DATABASE_URL="postgresql://user:pass@host:5432/flamekeeper?schema=public"
+DATABASE_URL="postgresql://user:pass@your-db-host:5432/flamekeeper?schema=public"
 ```
+
+**注意**：`db` 服务默认把 5432 绑定在 `127.0.0.1`，仅本机可连（避免数据库暴露公网）。
+本地开发连它用 `localhost:5432`；若需从局域网其他机器连接开发库，把 `docker-compose.yml` 里的
+端口映射改为 `"5432:5432"` 并自行加防火墙规则。
 
 ---
 
@@ -389,7 +415,8 @@ DATABASE_URL="postgresql://user:pass@host:5432/flamekeeper?schema=public"
 - [ ] 修改初始 admin 账号密码（`flamekeeper_admin@163.com` 的默认密码）
 - [ ] 更换 SMTP 密码为邮箱服务商提供的**授权码**，不要使用邮箱登录密码
 - [ ] 如启用 HTTPS，配置反向代理（Nginx / Caddy）
-- [ ] 定期备份数据卷：`flamekeeper-data`（数据库）与 `flamekeeper-uploads`（成员附件）
+- [ ] 定期备份：PostgreSQL（`docker compose exec db pg_dump ...`）与 `flamekeeper-uploads`（成员附件）
+- [ ] 修改 `POSTGRES_PASSWORD` 为强密码，并确认 5432 未暴露公网
 - [ ] 配置防火墙，仅暴露 80/443 端口
 - [ ] （可选）启用 Cloudflare 等 CDN 防 DDoS
 

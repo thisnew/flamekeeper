@@ -1,24 +1,53 @@
 version: "3.8"
 
 services:
+  # ---- PostgreSQL ----
+  db:
+    image: postgres:16-alpine
+    container_name: flamekeeper-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-flamekeeper}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-flamekeeper_pg_pw}
+      - POSTGRES_DB=${POSTGRES_DB:-flamekeeper}
+      # 中文排序/大小写行为更可控
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
+    volumes:
+      - flamekeeper-pgdata:/var/lib/postgresql/data
+    # 仅绑定本机，避免把数据库暴露到公网；
+    # 如需从局域网其他机器连开发库，改成 "5432:5432" 并自行加防火墙规则
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flamekeeper} -d ${POSTGRES_DB:-flamekeeper}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---- 应用 ----
   flamekeeper:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: flamekeeper-web
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - AUTH_SECRET=${AUTH_SECRET:-change-me-in-production}
       - AUTH_URL=${AUTH_URL:-http://localhost:3000}
-      - DATABASE_URL=file:/app/data/prod.db
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      # Initial admin account (used when the DB is first seeded)
+      # 默认连本 compose 内的 db 服务；也可指向外部 PostgreSQL
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-flamekeeper}:${POSTGRES_PASSWORD:-flamekeeper_pg_pw}@db:5432/${POSTGRES_DB:-flamekeeper}?schema=public
+      # 初始 admin 账号（首次初始化数据库时使用）
       - ADMIN_EMAIL=${ADMIN_EMAIL:-flamekeeper_admin@163.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-change-this-strong-password}
-      # Outbound mail (SMTP) — 163 uses an 授权码, not the login password
+      # 发信 SMTP（163 使用授权码，非登录密码）
       - SMTP_HOST=${SMTP_HOST:-smtp.163.com}
       - SMTP_PORT=${SMTP_PORT:-465}
       - SMTP_SECURE=${SMTP_SECURE:-true}
@@ -26,19 +55,17 @@ services:
       - SMTP_PASS=${SMTP_PASS:-your-smtp-auth-code}
       - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Eternal Flame 守焰者}
     volumes:
-      # Persist SQLite database
-      - flamekeeper-data:/app/data
-      # Persist member-uploaded attachments (<=10MB shares)
+      # 成员上传的附件（<=10MB 分享）
       - flamekeeper-uploads:/app/public/uploads
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/settings"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 20s
 
 volumes:
-  flamekeeper-data:
-    name: flamekeeper-data
+  flamekeeper-pgdata:
+    name: flamekeeper-pgdata
   flamekeeper-uploads:
     name: flamekeeper-uploads

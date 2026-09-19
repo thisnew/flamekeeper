@@ -1,6 +1,9 @@
-// Bootstrap a fresh SQLite database from prisma/init.sql.
+// Bootstrap a fresh database from prisma/init.sql.
 // Runs with plain `node` (no Prisma CLI needed) so it works in the slim
 // production image. Idempotent: skips everything if the schema exists.
+//
+// init.sql is produced at docker build time:
+//   prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script
 import { PrismaClient } from "@prisma/client";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,11 +14,18 @@ const sqlPath = join(here, "init.sql");
 
 const prisma = new PrismaClient();
 
+const url = process.env.DATABASE_URL || "";
+const isPostgres = /^postgres(ql)?:\/\//i.test(url);
+
 async function schemaExists() {
   try {
-    const rows = await prisma.$queryRawUnsafe(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='User'"
-    );
+    const rows = isPostgres
+      ? await prisma.$queryRawUnsafe(
+          "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'User'"
+        )
+      : await prisma.$queryRawUnsafe(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='User'"
+        );
     return Array.isArray(rows) && rows.length > 0;
   } catch {
     return false;
@@ -33,6 +43,8 @@ function splitStatements(sql) {
 }
 
 async function main() {
+  console.log(`🔌 数据库驱动: ${isPostgres ? "PostgreSQL" : "SQLite(legacy)"}`);
+
   if (await schemaExists()) {
     console.log("✔ 数据库已初始化，跳过建表");
     return;
@@ -40,6 +52,7 @@ async function main() {
 
   if (!existsSync(sqlPath)) {
     console.error("✘ 找不到 prisma/init.sql，无法初始化数据库");
+    console.error("  该文件在 docker build 时生成；本地开发请改用: npm run db:push");
     process.exit(1);
   }
 
