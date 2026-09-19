@@ -64,8 +64,37 @@ export const eventSchema = z.object({
   location: z.string().optional(),
 });
 
+/**
+ * 密码重置 —— 第一步：请求发送重置链接。
+ */
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("请输入有效的邮箱地址"),
+});
+
+/**
+ * 密码重置 —— 第二步：提交新密码。
+ *
+ * max(72) 来自 bcrypt 的输入上限（超过 72 字节会被静默截断，
+ * 等于悄悄削弱密码强度）。这里显式拒绝更诚实。
+ *
+ * 注意：loginSchema / registerSchema 目前没有这个上限。故意不动它们
+ * —— 若给 login 加上限，已经有超长密码的账号会突然无法登录。
+ */
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(1, "缺少重置令牌"),
+    password: z.string().min(6, "密码至少 6 位").max(72, "密码最长 72 个字符"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "两次密码输入不一致",
+    path: ["confirmPassword"],
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type PostInput = z.infer<typeof postSchema>;
 export type AddonInput = z.infer<typeof addonSchema>;
 export type EventInput = z.infer<typeof eventSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

@@ -4,12 +4,9 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
 import { isMailConfigured, sendMail, verificationEmailHtml } from "@/lib/mailer";
+import { appUrl } from "@/lib/app-url";
 
 const TOKEN_TTL_HOURS = 24;
-
-function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
-}
 
 async function createVerificationToken(email: string): Promise<string> {
   const token = randomBytes(32).toString("hex");

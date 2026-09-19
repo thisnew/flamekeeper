@@ -8,19 +8,19 @@ datasource db {
 }
 
 model User {
-  id             String        @id @default(cuid())
-  email          String        @unique
+  id             String               @id @default(cuid())
+  email          String               @unique
   emailVerified  DateTime?
   passwordHash   String
   name           String?
   image          String?
-  role           String        @default("USER") // VISITOR | USER | MEMBER | OFFICER | ADMIN
-  status         String        @default("PENDING_EMAIL") // PENDING_EMAIL | PENDING_APPROVAL | APPROVED | REJECTED | NEEDS_INFO
-  referredById   String?       // who approved/referred this member
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  referredBy     User?         @relation("UserReferrals", fields: [referredById], references: [id])
-  referrals      User[]        @relation("UserReferrals")
+  role           String               @default("USER") // VISITOR | USER | MEMBER | OFFICER | ADMIN
+  status         String               @default("PENDING_EMAIL") // PENDING_EMAIL | PENDING_APPROVAL | APPROVED | REJECTED | NEEDS_INFO
+  referredById   String? // who approved/referred this member
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  referredBy     User?                @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals      User[]               @relation("UserReferrals")
   applications   Application[]
   profile        Profile?
   accounts       Account[]
@@ -29,6 +29,7 @@ model User {
   characters     Character[]
   eventSignups   EventSignup[]
   auditLogs      AuditLog[]
+  passwordResets PasswordResetToken[]
 }
 
 model Account {
@@ -45,6 +46,7 @@ model Account {
   id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([provider, providerAccountId])
 }
 
@@ -60,7 +62,24 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
+
   @@unique([identifier, token])
+}
+
+/// 密码重置令牌。
+/// 只存 token 的 SHA-256 摘要 —— 即使数据库泄露，也无法直接用它改密码。
+/// 一次性使用（usedAt），默认 1 小时过期，改密后同用户的其余令牌一并作废。
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Profile {
@@ -79,8 +98,8 @@ model Application {
   userId          String
   characterName   String
   server          String
-  faction         String   // Alliance | Horde
-  class           String   // Warrior | Paladin | Hunter | Rogue | Priest | DK | Shaman | Mage | Warlock | Monk | Druid | DH | Evoker
+  faction         String // Alliance | Horde
+  class           String // Warrior | Paladin | Hunter | Rogue | Priest | DK | Shaman | Mage | Warlock | Monk | Druid | DH | Evoker
   spec            String
   itemLevel       Int?
   raidExperience  String?
@@ -96,70 +115,70 @@ model Application {
 }
 
 model Post {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   title          String
-  slug           String   @unique
-  content        String   // Markdown
+  slug           String    @unique
+  content        String // Markdown
   excerpt        String?
   coverImage     String?
-  category       String   // NEWS | ANNOUNCEMENT | BATTLE_REPORT | EVENT | RECRUITMENT | MAINTENANCE | SHARING
-  tags           String?  // comma-separated
-  isPinned       Boolean  @default(false)
-  isPublished    Boolean  @default(false)
+  category       String // NEWS | ANNOUNCEMENT | BATTLE_REPORT | EVENT | RECRUITMENT | MAINTENANCE | SHARING
+  tags           String? // comma-separated
+  isPinned       Boolean   @default(false)
+  isPublished    Boolean   @default(false)
   publishedAt    DateTime?
-  viewCount      Int      @default(0)
-  attachmentUrl  String?  // member-uploaded file (<= 10MB)
+  viewCount      Int       @default(0)
+  attachmentUrl  String? // member-uploaded file (<= 10MB)
   attachmentName String?
   attachmentSize Int?
   authorId       String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  author         User     @relation(fields: [authorId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  author         User      @relation(fields: [authorId], references: [id])
 }
 
 model Page {
   id        String   @id @default(cuid())
   slug      String   @unique
   title     String
-  content   String   // Markdown
+  content   String // Markdown
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Character {
-  id         String   @id @default(cuid())
-  name       String
-  server     String
-  faction    String
-  class      String
-  spec       String
-  role       String   // Tank | Healer | DPS
-  level      Int      @default(80)
-  itemLevel  Int?
-  mythicScore Int?
+  id           String   @id @default(cuid())
+  name         String
+  server       String
+  faction      String
+  class        String
+  spec         String
+  role         String // Tank | Healer | DPS
+  level        Int      @default(80)
+  itemLevel    Int?
+  mythicScore  Int?
   raidProgress String?
-  status     String   @default("ACTIVE") // ACTIVE | BENCH | CASUAL | LEFT
-  isPublic   Boolean  @default(true)
-  userId     String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  user       User?    @relation(fields: [userId], references: [id])
+  status       String   @default("ACTIVE") // ACTIVE | BENCH | CASUAL | LEFT
+  isPublic     Boolean  @default(true)
+  userId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User?    @relation(fields: [userId], references: [id])
 }
 
 model RaidProgress {
-  id          String   @id @default(cuid())
-  raidName    String
-  bossName    String
-  difficulty  String   // Normal | Heroic | Mythic
-  defeatedAt  DateTime
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  raidName   String
+  bossName   String
+  difficulty String // Normal | Heroic | Mythic
+  defeatedAt DateTime
+  createdAt  DateTime @default(now())
 }
 
 model AnalyticsSnapshot {
-  id          String   @id @default(cuid())
+  id           String   @id @default(cuid())
   snapshotDate DateTime @unique
-  data        String   // JSON blob
-  createdAt   DateTime @default(now())
+  data         String // JSON blob
+  createdAt    DateTime @default(now())
 }
 
 model Addon {
@@ -167,12 +186,12 @@ model Addon {
   name            String
   slug            String   @unique
   description     String
-  category        String   // RAID | MPLUS | PVP | UI | CLASS | WEAKAURA | MACRO | TOOL
-  applicableClass String?  // comma-separated classes
+  category        String // RAID | MPLUS | PVP | UI | CLASS | WEAKAURA | MACRO | TOOL
+  applicableClass String? // comma-separated classes
   gameVersion     String?
   downloadUrl     String?
-  waString        String?  // WeakAuras import string
-  tutorialContent String?  // Markdown tutorial
+  waString        String? // WeakAuras import string
+  tutorialContent String? // Markdown tutorial
   screenshotUrl   String?
   isRecommended   Boolean  @default(false)
   createdAt       DateTime @default(now())
@@ -180,17 +199,17 @@ model Addon {
 }
 
 model Event {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   title       String
-  slug        String   @unique
+  slug        String        @unique
   description String?
-  eventType   String   // RAID | MPLUS | PVP | SOCIAL | OTHER
+  eventType   String // RAID | MPLUS | PVP | SOCIAL | OTHER
   startTime   DateTime
   endTime     DateTime
   maxSlots    Int?
-  location    String?  // in-game zone / voice channel
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  location    String? // in-game zone / voice channel
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   signups     EventSignup[]
 }
 
@@ -202,6 +221,7 @@ model EventSignup {
   createdAt DateTime @default(now())
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([eventId, userId])
 }
 
@@ -209,8 +229,8 @@ model Media {
   id        String   @id @default(cuid())
   title     String?
   url       String
-  type      String   // IMAGE | VIDEO
-  album     String?  // gallery album name
+  type      String // IMAGE | VIDEO
+  album     String? // gallery album name
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

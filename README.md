@@ -28,7 +28,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 工具分享 | 插件库（含 WeakAuras 字符串一键复制）+ 成员发布的攻略分享（可传附件） |
 | 活动日历 | 团本、大秘境、PVP 活动展示（报名写入待实现，见路线图 P2） |
 | 媒体画廊 | 击杀截图、活动合照、视频集锦 |
-| 账号系统 | 邮箱注册 + 邮箱验证、密码登录、入会审批 |
+| 账号系统 | 邮箱注册 + 邮箱验证、密码登录、找回密码（邮件一次性链接）、入会审批 |
 | 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
 
 ### 权限模型
@@ -98,10 +98,11 @@ flamekeeper/
 ├── src/
 │   ├── app/
 │   │   ├── api/                 # API 路由（auth / posts / events / upload / health ...）
+│   │   │                        #   auth 下含 forgot-password、reset-password
 │   │   ├── admin/               # 管理后台（posts, applications, roster, addons,
 │   │   │                        #   events, gallery, settings, mail）
 │   │   ├── auth/                # login, register, verify-email,
-│   │   │                        #   forgot-password（UI 占位，见路线图 P2）
+│   │   │                        #   forgot-password, reset-password
 │   │   ├── apply/               # 入会申请表单
 │   │   ├── pending/             # 待审批成员落地页
 │   │   ├── news/[slug]/         # 信息发布列表 + 详情
@@ -117,7 +118,8 @@ flamekeeper/
 │   ├── components/
 │   │   ├── admin/               # 后台各模块的客户端组件
 │   │   ├── analytics/           # 图表（"use client"，隔离 recharts）
-│   │   ├── auth/  guild/  home/  news/  tools/  ui/
+│   │   ├── auth/                # 重置密码表单等
+│   │   ├── guild/  home/  news/  tools/  ui/
 │   │   ├── layout/              # Header、Footer、UserMenu、SceneBackground
 │   │   └── providers.tsx        # SessionProvider + Toaster
 │   ├── lib/
@@ -125,9 +127,11 @@ flamekeeper/
 │   │   ├── auth.ts              # NextAuth 配置
 │   │   ├── roles.ts             # 角色判定纯函数（服务端安全）
 │   │   ├── page-guard.ts        # requireMember / requireOfficer / requireAdmin
-│   │   ├── mailer.ts            # SMTP 发信（含 smtp_pass 解密）
+│   │   ├── mailer.ts            # SMTP 发信（含 smtp_pass 解密）+ 邮件模板
+│   │   ├── password-reset.ts    # 重置令牌的生成/摘要/校验/限流
 │   │   ├── secrets.ts           # 加解密的类型化再导出（实现见 prisma/secrets.mjs）
-│   │   ├── auth-utils.ts        # 密码哈希、邮箱规范化
+│   │   ├── app-url.ts           # 站点对外地址（拼邮件绝对链接）
+│   │   ├── auth-utils.ts        # 客户端角色判断（useIsAdmin 等）
 │   │   ├── validations.ts       # Zod schema
 │   │   └── utils.ts             # cn()、日期格式化、WoW 职业色映射
 │   └── styles/
@@ -612,6 +616,33 @@ npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
 注意 `smtp_pass` 是加密存储的，**更换 `AUTH_SECRET` 会导致旧密文无法解密**，
 必须重新填一次。
 
+### 忘记密码点了「发送重置链接」但没收到邮件
+
+接口对「邮箱是否存在」刻意返回**完全一致**的提示（防账号枚举），所以
+「提示已发送」不等于「真的发了」。按下面顺序排查：
+
+1. **邮件服务没配** —— 这种情况接口会直接返回 503「邮件服务尚未配置」。
+   到「后台 → 系统设置 → 邮件服务」点「测试连接」确认。
+2. **触发了频率限制** —— 同一账号 15 分钟内最多 3 次。超限时**故意返回
+   和成功一样的文案**（否则 429 会暴露账号存在），但不会发信。服务端日志会打
+   `[forgot-password] 触发频率限制，已静默丢弃`。等 15 分钟再试。
+3. **邮箱没注册** —— 未注册的邮箱同样返回「已发送」文案，但不会发信。
+   确认用的是注册时那个邮箱。
+4. **链接域名不对** —— 邮件里的链接由 `NEXT_PUBLIC_APP_URL` / `AUTH_URL`
+   拼出。这两个没配成对外域名的话，链接会指向 `localhost:3000`。
+
+**链接提示「无效或已过期」的常见原因**：超过 1 小时、已经用过一次、
+或者之后又申请了一次（新申请会作废旧的）。
+
+### 重置密码后，攻击者已登录的会话还能继续用吗
+
+**能。** 这是当前架构的已知限制：会话是 **JWT**（`strategy: "jwt"`）且未接线
+`PrismaAdapter`，服务端没有可作废的会话记录，所以重置密码**不会**踢掉已有会话。
+`change-password` 同样有这个限制。
+
+需要「改密即踢下线」的话，得给 `User` 加一个 `passwordChangedAt`（或
+`sessionVersion`）字段，并在 NextAuth 的 `jwt` 回调里比对签发时间 —— 目前未实现。
+
 ---
 
 ## 📋 脚本命令
@@ -672,13 +703,13 @@ npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
 - [x] **审计日志**：审批、修改密码、群发邮件等关键操作留痕
 - [x] **邮件服务**：SMTP 发信配置后台 + 注册邮箱验证（未验证不可登录）+ 会员群发
 - [x] **入会申请删除**：官员可删除申请记录（带审计日志）
+- [x] **密码重置邮件流程**：`/auth/forgot-password` 申请 → 邮件里的一次性链接 →
+  `/auth/reset-password` 设置新密码。令牌只以 SHA-256 摘要落库、1 小时过期、
+  用后即焚；改密后同用户其余令牌一并作废；同账号 15 分钟内限 3 次；
+  接口对「邮箱是否存在」返回完全一致的响应（防账号枚举）。
 
 ### 🚧 待办（P2 — 进阶）
 
-- [ ] 密码重置邮件（忘记密码流程）
-  —— 现状：`/auth/forgot-password` 只有 **UI 占位**（表单不可提交，页面自带
-  「将在未来版本启用」提示）；尚无 reset token 模型与发信接口。
-  登录页已链接到该页，所以不是死链但功能为空。
 - [ ] 活动报名（带替补机制）
   —— 现状：`EventSignup` 模型与字段已就绪，活动列表只读展示了报名者；
   **没有报名/退出的写入接口**。
@@ -721,7 +752,7 @@ npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
 
 ## 📝 数据模型一览
 
-共 **17 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
+共 **18 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
 
 **账号与鉴权（NextAuth 所需）**
 
@@ -729,6 +760,8 @@ npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
 - `Account` / `Session` / `VerificationToken` —— NextAuth 标准适配器表。
   **当前未被使用**：会话走 JWT（`strategy: "jwt"`），未接线 `PrismaAdapter`，
   保留在 schema 中是为了将来接入 OAuth / 数据库会话时无需迁移。
+- `PasswordResetToken` —— 密码重置令牌。**只存 token 的 SHA-256 摘要**（不存原文），
+  一次性使用（`usedAt`）、默认 1 小时过期；重置成功后同用户的其余令牌一并作废。
 
 **资料与入会**
 

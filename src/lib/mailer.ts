@@ -262,3 +262,24 @@ export function shareNoticeEmailHtml(params: {
      </p>`
   );
 }
+
+export function passwordResetEmailHtml(params: {
+  nickname: string;
+  resetUrl: string;
+  expiresMinutes: number;
+}): string {
+  const { nickname, resetUrl, expiresMinutes } = params;
+  const humanTtl =
+    expiresMinutes >= 60 ? `${Math.round(expiresMinutes / 60)} 小时` : `${expiresMinutes} 分钟`;
+  return mailShell(
+    "重置你的密码",
+    `<p>${nickname ? `${nickname}，你好：` : "你好："}</p>
+     <p>我们收到了重置 Eternal Flame（守焰者）账号密码的请求。点击下面的按钮设置新密码：</p>
+     <p style="text-align:center;margin:28px 0;">
+       <a href="${resetUrl}" style="display:inline-block;padding:12px 28px;background:#F0B823;color:#000;font-weight:700;text-decoration:none;border-radius:8px;">设置新密码</a>
+     </p>
+     <p style="font-size:13px;color:#9D9D9D;">链接 <strong>${humanTtl}</strong>内有效，且只能使用一次。如果按钮无法点击，请复制以下地址到浏览器打开：</p>
+     <p style="font-size:12px;word-break:break-all;color:#69CCF0;">${resetUrl}</p>
+     <p style="font-size:13px;color:#9D9D9D;">如果这不是你本人的操作，请忽略本邮件 —— 你的密码<strong>不会</strong>被更改。</p>`
+  );
+}

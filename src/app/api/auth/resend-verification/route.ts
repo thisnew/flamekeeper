@@ -3,14 +3,11 @@ import { randomBytes } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isMailConfigured, sendMail, verificationEmailHtml } from "@/lib/mailer";
+import { appUrl } from "@/lib/app-url";
 
 const TOKEN_TTL_HOURS = 24;
 
 const schema = z.object({ email: z.string().email() });
-
-function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
-}
 
 export async function POST(req: NextRequest) {
   try {
