@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { signIn, getCsrfToken } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Flame, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
@@ -16,7 +16,6 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
   const [email, setEmail] = useState("");
@@ -29,8 +28,10 @@ function LoginForm() {
     setLoading(true);
 
     try {
+      // Step 1: explicitly fetch CSRF token (NextAuth v5 requirement)
       const csrfToken = await getCsrfToken();
 
+      // Step 2: signIn with redirect:false so we can show errors inline
       const result = await signIn("credentials", {
         email,
         password,
@@ -48,13 +49,22 @@ function LoginForm() {
         return;
       }
 
-      if (result.ok) {
-        toast.success("登录成功！");
-        router.push("/");
-        router.refresh();
-      } else {
+      if (!result.ok) {
         toast.error("登录失败，请稍后再试");
+        return;
       }
+
+      // Step 3: success — toast + force navigate with full reload.
+      // We MUST use window.location (not router.push) because:
+      //   - The Header reads session via server-side `auth()` in layout.tsx
+      //   - router.push + router.refresh() only re-renders the current page;
+      //     the server-component layout (which holds Header) is not re-executed
+      //     in a way that picks up the new session cookie
+      //   - A full page load re-runs the server component, fetches the new
+      //     session, and renders the logged-in Header
+      toast.success("登录成功！");
+      // Use replace so user can't go back to login page
+      window.location.replace(result.url || "/");
     } catch (err) {
       console.error("Login error:", err);
       toast.error(err instanceof Error ? err.message : "登录失败，请稍后再试");
