@@ -1,7 +1,11 @@
 // Plain-JS seeder (runs with `node`, no tsx required) so the Docker
 // runtime can seed on first boot. Idempotent — safe to run repeatedly.
+//
+// Semantics: only FILLS IN MISSING values. Existing rows are never
+// overwritten, so values an admin changed in the UI survive a re-seed.
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { encryptSecret, isEncrypted } from "./secrets.mjs";
 
 const prisma = new PrismaClient();
 
@@ -40,6 +44,22 @@ async function main() {
   });
 
   // ---- Default settings ----
+  // smtp_pass is stored encrypted (see prisma/secrets.mjs). Encrypt at
+  // seed time so the plaintext never lands in the database at all.
+  let SMTP_PASS_STORED = "";
+  if (SMTP_PASS) {
+    try {
+      SMTP_PASS_STORED = isEncrypted(SMTP_PASS) ? SMTP_PASS : encryptSecret(SMTP_PASS);
+    } catch (e) {
+      console.warn(
+        `⚠ AUTH_SECRET 未设置，smtp_pass 将以明文写入（首次读取时会自动加密）: ${
+          e instanceof Error ? e.message : e
+        }`
+      );
+      SMTP_PASS_STORED = SMTP_PASS;
+    }
+  }
+
   const defaultSettings = [
     { key: "site_title", value: "Eternal Flame | 守焰者" },
     { key: "site_description", value: "薪火不灭，荣耀永燃" },
@@ -58,14 +78,16 @@ async function main() {
     { key: "smtp_port", value: SMTP_PORT },
     { key: "smtp_secure", value: SMTP_SECURE },
     { key: "smtp_user", value: SMTP_USER },
-    { key: "smtp_pass", value: SMTP_PASS },
+    { key: "smtp_pass", value: SMTP_PASS_STORED },
     { key: "smtp_from_name", value: SMTP_FROM_NAME },
   ];
 
+  // update: {} -> do NOT clobber values the admin changed in the UI
   for (const setting of defaultSettings) {
+    if (setting.key === "smtp_pass" && !setting.value) continue; // don't create an empty secret
     await prisma.setting.upsert({
       where: { key: setting.key },
-      update: { value: setting.value },
+      update: {},
       create: setting,
     });
   }

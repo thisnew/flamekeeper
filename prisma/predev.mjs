@@ -1,29 +1,33 @@
-// 在 `npm run dev` / `npm start` 之前运行，确保数据库表结构与
-// prisma/schema.prisma 一致。
+// 在 `npm run dev` / `npm start` 之前运行，确保数据库可直接使用：
+//   1) prisma db push  —— 建表 / 同步表结构
+//   2) prisma/seed.mjs —— 补齐缺失的初始数据（admin 账号、系统设置、欢迎公告）
 //
-// 为什么需要：只有 Docker 启动会走 prisma/init-db.mjs 建表；
+// 为什么需要：只有 Docker 启动会走 prisma/init-db.mjs + seed.mjs；
 // 本地 `next dev` 不会。新克隆的仓库、或刚被清空的数据库，直接
-// `npm run dev` 会出现「登录报错 / 页面没数据」，但错误信息很不直观。
+// `npm run dev` 会出现「登录报错 / 页面没数据」，而错误信息很不直观。
 //
 // 行为：
-//   - 幂等：db push 对已有表只做增量变更，不会删数据
+//   - 两步都是幂等的：db push 只做增量变更；seed 只填缺失值，
+//     不会覆盖你在后台改过的配置
 //   - 失败即中止，并给出可操作的原因（而不是让 dev 带着坏库启动）
-//   - 逃生舱：SKIP_DB_PUSH=1 npm run dev   （例如只想预览前端、数据库没开）
+//   - 逃生舱：SKIP_DB_PUSH=1 npm run dev  （例如只想预览前端、数据库没开）
 import { execSync } from "node:child_process";
 
 if (process.env.SKIP_DB_PUSH === "1" || process.env.SKIP_DB_PUSH === "true") {
-  console.log("⏭  SKIP_DB_PUSH=1 —— 跳过建表检查（数据库相关功能可能不可用）");
+  console.log("⏭  SKIP_DB_PUSH=1 —— 跳过建表/初始化（数据库相关功能可能不可用）");
   process.exit(0);
 }
 
-console.log("🔎 检查数据库表结构（prisma db push）...");
-
-try {
-  // --no-install 防止 npx 在找不到本地 prisma 时尝试联网下载
-  execSync("npx --no-install prisma db push --skip-generate", {
+const run = (cmd) =>
+  execSync(cmd, {
     stdio: "inherit",
     env: process.env,
+    // npx --no-install 防止在找不到本地 prisma 时尝试联网下载
   });
+
+try {
+  console.log("🔎 检查数据库表结构（prisma db push）...");
+  run("npx --no-install prisma db push --skip-generate");
 } catch {
   console.error("");
   console.error("╭──────────────────────────────────────────────────────────────╮");
@@ -42,4 +46,14 @@ try {
   console.error("       SKIP_DB_PUSH=1 npm run dev");
   console.error("");
   process.exit(1);
+}
+
+try {
+  console.log("🌱 补齐初始数据（admin 账号 / 系统设置 / 欢迎公告）...");
+  run("node prisma/seed.mjs");
+} catch {
+  console.error("");
+  console.error("⚠  初始数据写入失败（表已建好，程序仍会启动）。");
+  console.error("   如需重试： npm run db:seed");
+  console.error("");
 }
