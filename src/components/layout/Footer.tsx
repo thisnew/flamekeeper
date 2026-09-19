@@ -1,5 +1,6 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Flame, Heart } from "lucide-react";
+import { isMemberOrAboveRole } from "@/lib/roles";
 
 interface SessionUser {
   id?: string;
@@ -10,7 +11,8 @@ interface SessionUser {
 }
 
 export default function Footer({ user }: { user: SessionUser | null }) {
-  const isLoggedIn = !!user;
+  // Member-only links require an approved member role, not just a session
+  const isMember = isMemberOrAboveRole(user?.role);
 
   return (
     <footer className="relative z-10 border-t border-border-gold bg-bg-secondary/50">
@@ -40,7 +42,7 @@ export default function Footer({ user }: { user: SessionUser | null }) {
               <Link href="/news" className="text-sm text-text-muted hover:text-wow-gold transition-colors">信息发布</Link>
               <Link href="/guide" className="text-sm text-text-muted hover:text-wow-gold transition-colors">入会指南</Link>
               <Link href="/about" className="text-sm text-text-muted hover:text-wow-gold transition-colors">公会介绍</Link>
-              {isLoggedIn && (
+              {isMember && (
                 <Link href="/roster" className="text-sm text-text-muted hover:text-wow-gold transition-colors">成员名册</Link>
               )}
               <Link href="/contact" className="text-sm text-text-muted hover:text-wow-gold transition-colors">联系我们</Link>
@@ -51,7 +53,7 @@ export default function Footer({ user }: { user: SessionUser | null }) {
           <div>
             <h4 className="font-display text-sm text-wow-gold mb-3 tracking-wider">资源</h4>
             <div className="flex flex-col gap-1.5">
-              {isLoggedIn && (
+              {isMember && (
                 <>
                   <Link href="/tools" className="text-sm text-text-muted hover:text-wow-gold transition-colors">工具分享</Link>
                   <Link href="/analytics" className="text-sm text-text-muted hover:text-wow-gold transition-colors">数据分析</Link>
@@ -59,7 +61,7 @@ export default function Footer({ user }: { user: SessionUser | null }) {
                 </>
               )}
               <Link href="/gallery" className="text-sm text-text-muted hover:text-wow-gold transition-colors">媒体画廊</Link>
-              {!isLoggedIn && (
+              {!isMember && (
                 <Link href="/auth/register" className="text-sm text-wow-gold hover:text-wow-gold-bright transition-colors">
                   注册解锁成员内容 →
                 </Link>

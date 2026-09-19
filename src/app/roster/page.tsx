@@ -1,39 +1,117 @@
 import { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { Shield, Search } from "lucide-react";
+import { Shield } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { CLASS_COLORS } from "@/lib/utils";
+import { requireMember } from "@/lib/page-guard";
+import type { TreeNode } from "@/components/guild/ReferralTree";
+import RosterTabs from "@/components/guild/RosterTabs";
 
 export const metadata: Metadata = {
   title: "成员名册",
-  description: "查看 Eternal Flame 公会成员名单，职业、专精、进度一览。",
+  description: "查看 Eternal Flame 公会成员名单，职业、专精、进度与引荐结构。",
 };
 
-async function getRoster() {
+const ROLE_ORDER: Record<string, number> = { ADMIN: 0, OFFICER: 1, MEMBER: 2 };
+
+async function getRosterData() {
   try {
-    return await prisma.character.findMany({
-      where: { isPublic: true },
-      orderBy: [{ status: "asc" }, { name: "asc" }],
-      include: { user: { select: { name: true } } },
-    });
-  } catch {
-    return [];
+    const [characters, users] = await Promise.all([
+      prisma.character.findMany({
+        where: { isPublic: true },
+        orderBy: [{ status: "asc" }, { name: "asc" }],
+        select: {
+          id: true, name: true, server: true, class: true, spec: true,
+          role: true, itemLevel: true, status: true,
+        },
+      }),
+      prisma.user.findMany({
+        where: { role: { in: ["MEMBER", "OFFICER", "ADMIN"] } },
+        orderBy: [{ role: "asc" }, { name: "asc" }],
+        select: {
+          id: true, name: true, email: true, role: true, referredById: true,
+          characters: { select: { name: true, class: true, spec: true, role: true }, take: 1 },
+        },
+      }),
+    ]);
+    return { characters, users };
+  } catch (error) {
+    console.error("getRosterData error:", error);
+    return { characters: [], users: [] };
   }
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "主力",
-  BENCH: "替补",
-  CASUAL: "休闲",
-  LEFT: "已离会",
+type RosterUser = {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
+  referredById: string | null;
+  characters: { name: string; class: string; spec: string; role: string }[];
 };
 
-export default async function RosterPage() {
-  const session = await auth();
-  if (!session) redirect("/auth/login");
+/** Build the referral forest (parent = the member who approved you). */
+function buildReferralForest(users: RosterUser[]): TreeNode[] {
+  const nodes = new Map<string, TreeNode>();
+  for (const u of users) {
+    nodes.set(u.id, {
+      id: u.id,
+      name: u.name || u.email,
+      role: u.role,
+      email: u.email,
+      character: u.characters[0] ?? null,
+      children: [],
+    });
+  }
 
-  const characters = await getRoster();
+  const roots: TreeNode[] = [];
+  for (const u of users) {
+    const node = nodes.get(u.id)!;
+    const parent = u.referredById ? nodes.get(u.referredById) : undefined;
+    if (parent && parent.id !== node.id) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  // Guard against cycles: keep only reachable nodes from real roots,
+  // promoting any orphaned node to a root so nobody disappears.
+  const seen = new Set<string>();
+  const ordered: TreeNode[] = [];
+  const dfs = (node: TreeNode) => {
+    if (seen.has(node.id)) {
+      node.children = [];
+      return;
+    }
+    seen.add(node.id);
+    node.children = node.children.filter((c) => !seen.has(c.id) && c.id !== node.id);
+    for (const c of node.children) dfs(c);
+    ordered.push(node);
+  };
+  for (const r of roots) dfs(r);
+  for (const u of users) {
+    if (!seen.has(u.id)) {
+      const node = nodes.get(u.id)!;
+      node.children = [];
+      seen.add(u.id);
+      roots.push(node);
+    }
+  }
+
+  const sortNodes = (arr: TreeNode[]) => {
+    arr.sort(
+      (a, b) =>
+        (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
+        String(a.name).localeCompare(String(b.name), "zh-CN")
+    );
+    arr.forEach((n) => sortNodes(n.children));
+  };
+  sortNodes(roots);
+
+  return roots;
+}
+
+export default async function RosterPage() {
+  await requireMember();
+
+  const { characters, users } = await getRosterData();
+  const treeRoots = buildReferralForest(users as RosterUser[]);
 
   return (
     <div className="page-enter">
@@ -43,72 +121,13 @@ export default async function RosterPage() {
           <h1 className="font-display text-3xl sm:text-4xl font-bold text-wow-gold text-glow mb-4">
             成员名册
           </h1>
-          <p className="text-text-secondary">守护火焰的勇士们</p>
+          <p className="text-text-secondary">守护火焰的勇士们 · 名册与引荐结构</p>
         </div>
       </section>
 
-      <section className="py-16">
+      <section className="py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          {characters.length === 0 ? (
-            <div className="text-center py-20 text-text-muted border border-border-default rounded bg-bg-card">
-              <Shield className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p>成员名册暂未开放</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border-gold">
-                    <th className="text-left py-3 px-4 text-wow-gold font-display text-xs tracking-wider">角色</th>
-                    <th className="text-left py-3 px-4 text-wow-gold font-display text-xs tracking-wider">职业</th>
-                    <th className="text-left py-3 px-4 text-wow-gold font-display text-xs tracking-wider">专精</th>
-                    <th className="text-left py-3 px-4 text-wow-gold font-display text-xs tracking-wider">职能</th>
-                    <th className="text-left py-3 px-4 text-wow-gold font-display text-xs tracking-wider hidden sm:table-cell">服务器</th>
-                    <th className="text-left py-3 px-4 text-wow-gold font-display text-xs tracking-wider hidden md:table-cell">装等</th>
-                    <th className="text-left py-3 px-4 text-wow-gold font-display text-xs tracking-wider">状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {characters.map((char) => (
-                    <tr key={char.id} className="border-b border-border-default hover:bg-bg-card/50 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-text-primary">{char.name}</span>
-                      </td>
-                      <td className={`py-3 px-4 font-medium ${CLASS_COLORS[char.class] || "text-text-secondary"}`}>
-                        {char.class}
-                      </td>
-                      <td className="py-3 px-4 text-text-muted">{char.spec}</td>
-                      <td className="py-3 px-4">
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          char.role === "Tank" ? "bg-wow-blue/20 text-wow-blue-light" :
-                          char.role === "Healer" ? "bg-wow-green/20 text-wow-green" :
-                          "bg-wow-red/20 text-wow-red"
-                        }`}>
-                          {char.role === "Tank" ? "坦克" : char.role === "Healer" ? "治疗" : "DPS"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-text-muted hidden sm:table-cell">{char.server}</td>
-                      <td className="py-3 px-4 text-text-muted hidden md:table-cell">
-                        {char.itemLevel ? (
-                          <span className={`font-mono ${
-                            char.itemLevel >= 630 ? "text-wow-purple" :
-                            char.itemLevel >= 610 ? "text-wow-blue-light" : "text-text-secondary"
-                          }`}>{char.itemLevel}</span>
-                        ) : "-"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`text-xs ${
-                          char.status === "ACTIVE" ? "text-wow-green" :
-                          char.status === "BENCH" ? "text-wow-gold" :
-                          "text-text-muted"
-                        }`}>{STATUS_LABELS[char.status] || char.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <RosterTabs characters={characters as any} treeRoots={treeRoots} />
         </div>
       </section>
     </div>

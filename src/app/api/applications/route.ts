@@ -1,13 +1,13 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { isOfficerOrAboveRole } from "@/lib/roles";
+import { isOfficerOrAboveRole, isMemberOrAboveRole } from "@/lib/roles";
 
 export async function GET() {
   try {
     const session = await auth();
     const user = session?.user as any;
-    if (!user?.id || !isOfficerOrAboveRole(user.role)) {
+    if (!user?.id || !isMemberOrAboveRole(user.role)) {
       return NextResponse.json({ error: "无权访问" }, { status: 403 });
     }
 
@@ -26,8 +26,8 @@ export async function PATCH(req: NextRequest) {
   try {
     const session = await auth();
     const actor = session?.user as any;
-    if (!actor?.id || !isOfficerOrAboveRole(actor.role)) {
-      return NextResponse.json({ error: "无权操作" }, { status: 403 });
+    if (!actor?.id || !isMemberOrAboveRole(actor.role)) {
+      return NextResponse.json({ error: "仅公会成员可审批" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -64,6 +64,8 @@ export async function PATCH(req: NextRequest) {
           data: {
             status: "APPROVED",
             role: application.user.role === "USER" ? "MEMBER" : application.user.role,
+            // The member who approved becomes this user's referrer
+            referredById: application.user.referredById ?? actor.id,
           },
         });
         const exists = await tx.character.findFirst({

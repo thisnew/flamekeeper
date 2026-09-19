@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { Menu, X, Flame, ChevronDown, User, LogOut, Shield } from "lucide-react";
+import { Menu, X, Flame, ChevronDown, User, LogOut, Shield, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isMemberOrAboveRole } from "@/lib/roles";
 
 interface SessionUser {
   id?: string;
@@ -22,6 +23,7 @@ export default function UserMenu({
 }) {
   const [open, setOpen] = useState(false);
   const isOfficer = user?.role === "OFFICER" || user?.role === "ADMIN";
+  const isMember = isMemberOrAboveRole(user?.role);
 
   if (!user) {
     return (
@@ -67,6 +69,15 @@ export default function UserMenu({
             >
               <User className="w-4 h-4" /> 个人中心
             </Link>
+            {isMember && (
+              <Link
+                href="/admin/applications"
+                className="flex items-center gap-2 px-4 py-2 text-sm text-text-secondary hover:text-wow-gold hover:bg-bg-card-hover"
+                onClick={() => setOpen(false)}
+              >
+                <ClipboardCheck className="w-4 h-4" /> 入会审批
+              </Link>
+            )}
             {isOfficer && (
               <Link
                 href="/admin"

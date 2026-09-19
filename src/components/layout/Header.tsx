@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isMemberOrAboveRole } from "@/lib/roles";
 import UserMenu from "@/components/layout/UserMenu";
 
 const navItems = [
@@ -34,9 +35,10 @@ export default function Header({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  // Hide member-only nav items when not logged in
+  // Member-only nav items require an approved member role, not just a session
+  const isMember = isMemberOrAboveRole(user?.role);
   const visibleNavItems = navItems.filter(
-    (item) => !item.requiresAuth || !!user
+    (item) => !item.requiresAuth || isMember
   );
 
   useEffect(() => {
@@ -122,6 +124,15 @@ export default function Header({
                   >
                     个人中心
                   </Link>
+                  {isMember && (
+                    <Link
+                      href="/admin/applications"
+                      className="text-sm text-wow-gold py-2"
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      入会审批
+                    </Link>
+                  )}
                   {(user.role === "OFFICER" || user.role === "ADMIN") && (
                     <Link
                       href="/admin"

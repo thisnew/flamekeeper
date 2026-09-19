@@ -1,8 +1,7 @@
 import { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { CalendarDays, MapPin, Clock, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireMember } from "@/lib/page-guard";
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -30,8 +29,7 @@ async function getEvents() {
 }
 
 export default async function EventsPage() {
-  const session = await auth();
-  if (!session) redirect("/auth/login");
+  await requireMember();
 
   const events = await getEvents();
 

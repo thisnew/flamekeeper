@@ -21,7 +21,13 @@ interface Application {
   status: string;
   officerNote: string | null;
   createdAt: string | Date;
-  user: { email: string; name: string | null; status: string; emailVerified: string | Date | null };
+  user: {
+    email: string;
+    name: string | null;
+    status: string;
+    emailVerified: string | Date | null;
+    referredBy: { id: string; name: string | null; email: string } | null;
+  };
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -31,7 +37,13 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   NEEDS_INFO: { label: "需补充信息", color: "text-wow-orange" },
 };
 
-export default function ApplicationsClient({ initial }: { initial: Application[] }) {
+export default function ApplicationsClient({
+  initial,
+  canDelete = false,
+}: {
+  initial: Application[];
+  canDelete?: boolean;
+}) {
   const [list, setList] = useState<Application[]>(initial);
   const [acting, setActing] = useState<string | null>(null);
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
@@ -109,15 +121,17 @@ export default function ApplicationsClient({ initial }: { initial: Application[]
                       邮箱未验证
                     </span>
                   )}
-                  <button
-                    onClick={() => handleDelete(app.id, app.characterName)}
-                    disabled={acting === app.id}
-                    className="ml-auto flex items-center gap-1 px-2.5 py-1 text-xs border border-wow-red/30 text-wow-red rounded hover:bg-wow-red/10 transition-colors disabled:opacity-50"
-                    title="删除该申请记录"
-                  >
-                    {acting === app.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                    删除
-                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(app.id, app.characterName)}
+                      disabled={acting === app.id}
+                      className="ml-auto flex items-center gap-1 px-2.5 py-1 text-xs border border-wow-red/30 text-wow-red rounded hover:bg-wow-red/10 transition-colors disabled:opacity-50"
+                      title="删除该申请记录"
+                    >
+                      {acting === app.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                      删除
+                    </button>
+                  )}
                 </div>
                 <div className="text-sm text-text-muted space-y-1">
                   <p>{app.class} · {app.spec} · {app.faction === "Alliance" ? "联盟" : "部落"}</p>
@@ -130,7 +144,12 @@ export default function ApplicationsClient({ initial }: { initial: Application[]
                   <p className="text-xs mt-2">申请编号：<code className="text-wow-gold">{app.applicationCode}</code></p>
                   <p className="text-xs">提交时间：{new Date(app.createdAt).toLocaleString("zh-CN")}</p>
                   {app.officerNote && (
-                    <p className="text-xs text-wow-orange mt-1">官员备注：{app.officerNote}</p>
+                    <p className="text-xs text-wow-orange mt-1">审批备注：{app.officerNote}</p>
+                  )}
+                  {app.user.referredBy && (
+                    <p className="text-xs text-wow-gold mt-1">
+                      引荐人：{app.user.referredBy.name || app.user.referredBy.email}
+                    </p>
                   )}
                 </div>
               </div>

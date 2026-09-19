@@ -2,6 +2,7 @@ import { Flame, Shield, Swords, Users, ArrowRight, Star, ChevronRight } from "lu
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isMemberOrAboveRole } from "@/lib/roles";
 import { formatDate } from "@/lib/utils";
 
 async function getHomeData() {
@@ -31,15 +32,15 @@ export default async function HomePage() {
     getHomeData(),
     auth(),
   ]);
-  const isLoggedIn = !!session;
+  const isMember = isMemberOrAboveRole((session?.user as any)?.role);
 
-  // Member-only service cards are hidden for anonymous visitors
+  // Member-only service cards are hidden from guests AND unapproved users
   const features = [
     { icon: Swords, title: "团队副本", desc: "固定团本活动，稳定Farm，开荒冲进度", publicCard: true },
     { icon: Users, title: "成员名册", desc: "查看公会成员职业、专精与进度", publicCard: false },
     { icon: Star, title: "工具分享", desc: "精选插件推荐、WA字符串与成员分享", publicCard: false },
     { icon: Shield, title: "数据分析", desc: "职业分布、装等分布、出勤趋势", publicCard: false },
-  ].filter((f) => f.publicCard || isLoggedIn);
+  ].filter((f) => f.publicCard || isMember);
 
   return (
     <div>
@@ -192,7 +193,7 @@ export default async function HomePage() {
                 <p className="text-sm text-text-muted">{feature.desc}</p>
               </div>
             ))}
-            {!isLoggedIn && (
+            {!isMember && (
               <Link
                 href="/auth/register"
                 className="flex flex-col items-center justify-center bg-bg-card border border-dashed border-border-gold rounded p-6 hover:bg-bg-card-hover transition-all text-center"

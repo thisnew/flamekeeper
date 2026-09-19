@@ -16,8 +16,11 @@ model User {
   image          String?
   role           String        @default("USER") // VISITOR | USER | MEMBER | OFFICER | ADMIN
   status         String        @default("PENDING_EMAIL") // PENDING_EMAIL | PENDING_APPROVAL | APPROVED | REJECTED | NEEDS_INFO
+  referredById   String?       // who approved/referred this member
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  referredBy     User?         @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals      User[]        @relation("UserReferrals")
   applications   Application[]
   profile        Profile?
   accounts       Account[]

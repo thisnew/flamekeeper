@@ -1,8 +1,7 @@
 import { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Puzzle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireMember } from "@/lib/page-guard";
 import { isMemberOrAboveRole } from "@/lib/roles";
 import ToolsTabs from "@/components/tools/ToolsTabs";
 
@@ -31,11 +30,9 @@ async function getToolsData() {
 }
 
 export default async function ToolsPage() {
-  const session = await auth();
-  if (!session) redirect("/auth/login");
+  const user = await requireMember();
 
   const { addons, shares } = await getToolsData();
-  const user = session.user as any;
   const canPublish = isMemberOrAboveRole(user.role);
 
   return (
