@@ -83,7 +83,12 @@ services:
     healthcheck:
       # /api/health 是公开的轻量级存活检查，不依赖数据库 / 鉴权；
       # 比 /api/settings 更安全（settings 接口未来可能要求登录）
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      # ⚠ 必须写 127.0.0.1，不能用 localhost。
+      # Alpine 的 musl 解析器按 RFC 6724 优先返回 IPv6 的 ::1，而 Next.js
+      # 绑定的是 HOSTNAME=0.0.0.0（仅 IPv4，见 Dockerfile），于是 wget 去连
+      # [::1]:3000 被拒 —— 报 "Connecting to localhost:3000 ([::1]:3000)
+      # Connection refused"，即使服务本身完全正常，容器也会一直显示 unhealthy。
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
