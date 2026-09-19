@@ -76,4 +76,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
   },
+  // Trust all hosts in dev / behind reverse proxy; in production set AUTH_URL explicitly
+  trustHost: true,
 });

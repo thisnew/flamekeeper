@@ -4,9 +4,9 @@
   "description": "Eternal Flame Guild Hub — 守焰者 · 薪火不灭，荣耀永燃",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -H 0.0.0.0 -p 3000",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
     "db:studio": "npx prisma studio",
