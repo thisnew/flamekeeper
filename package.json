@@ -10,7 +10,9 @@
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
     "db:studio": "npx prisma studio",
-    "db:seed": "node prisma/seed.mjs"
+    "db:seed": "node prisma/seed.mjs",
+    "db:demo": "node prisma/demo-data.mjs",
+    "db:demo:clean": "node prisma/demo-data.mjs --clean"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.0",
