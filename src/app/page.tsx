@@ -4,20 +4,25 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 
 async function getHomeData() {
-  const [posts, characters, raidProgress] = await Promise.all([
-    prisma.post.findMany({
-      where: { isPublished: true },
-      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
-      take: 3,
-    }),
-    prisma.character.count({ where: { isPublic: true } }),
-    prisma.raidProgress.findMany({
-      orderBy: { defeatedAt: "desc" },
-      take: 5,
-    }),
-  ]);
+  try {
+    const [posts, characters, raidProgress] = await Promise.all([
+      prisma.post.findMany({
+        where: { isPublished: true },
+        orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+        take: 3,
+      }),
+      prisma.character.count({ where: { isPublic: true } }),
+      prisma.raidProgress.findMany({
+        orderBy: { defeatedAt: "desc" },
+        take: 5,
+      }),
+    ]);
 
-  return { posts, memberCount: characters, raidProgress };
+    return { posts, memberCount: characters, raidProgress };
+  } catch (error) {
+    console.error("getHomeData error:", error);
+    return { posts: [], memberCount: 0, raidProgress: [] };
+  }
 }
 
 export default async function HomePage() {
