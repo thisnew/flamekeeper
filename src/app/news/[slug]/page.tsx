@@ -1,0 +1,103 @@
+﻿import { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { formatDate } from "@/lib/utils";
+import Link from "next/link";
+import { ArrowLeft, Eye } from "lucide-react";
+
+interface Props {
+  params: Promise<{ slug: string }>;
+}
+
+async function getPost(slug: string) {
+  try {
+    return await prisma.post.findUnique({
+      where: { slug },
+      include: { author: { select: { name: true, email: true } } },
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await getPost(slug);
+  if (!post) return { title: "文章未找到" };
+  return {
+    title: post.title,
+    description: post.excerpt || post.title,
+  };
+}
+
+export default async function NewsDetailPage({ params }: Props) {
+  const { slug } = await params;
+  const post = await getPost(slug);
+
+  if (!post || !post.isPublished) notFound();
+
+  return (
+    <div className="page-enter max-w-4xl mx-auto px-4 sm:px-6 py-12">
+      <Link
+        href="/news"
+        className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-wow-gold transition-colors mb-8"
+      >
+        <ArrowLeft className="w-4 h-4" /> 返回列表
+      </Link>
+
+      <article>
+        <header className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs px-2 py-0.5 bg-wow-gold/10 text-wow-gold border border-border-gold rounded">
+              {post.category}
+            </span>
+            {post.isPinned && (
+              <span className="text-xs px-2 py-0.5 bg-wow-red/10 text-wow-red border border-wow-red/30 rounded">
+                置顶
+              </span>
+            )}
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-wow-gold text-glow mb-4">
+            {post.title}
+          </h1>
+          <div className="flex items-center gap-4 text-sm text-text-muted">
+            <span>{post.publishedAt ? formatDate(post.publishedAt) : ""}</span>
+            {post.author.name && <span>· {post.author.name}</span>}
+            <span className="flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5" /> {post.viewCount}
+            </span>
+          </div>
+        </header>
+
+        {post.coverImage && (
+          <div className="mb-8 rounded overflow-hidden border border-border-default">
+            <img src={post.coverImage} alt={post.title} className="w-full object-cover max-h-96" />
+          </div>
+        )}
+
+        <div className="prose prose-invert max-w-none text-text-secondary leading-relaxed">
+          {post.content.split("\n").map((line, i) => {
+            if (line.startsWith("## ")) {
+              return <h2 key={i} className="font-display text-xl font-bold text-wow-gold mt-8 mb-4">{line.slice(3)}</h2>;
+            }
+            if (line.startsWith("### ")) {
+              return <h3 key={i} className="font-bold text-lg text-text-primary mt-6 mb-3">{line.slice(4)}</h3>;
+            }
+            if (line.trim() === "") return <br key={i} />;
+            return <p key={i} className="mb-3">{line}</p>;
+          })}
+        </div>
+
+        {post.tags && (
+          <div className="flex flex-wrap gap-2 mt-8 pt-6 border-t border-border-default">
+            {post.tags.split(",").map((tag) => (
+              <span key={tag} className="text-xs px-2 py-0.5 bg-bg-card border border-border-default rounded text-text-muted">
+                {tag.trim()}
+              </span>
+            ))}
+          </div>
+        )}
+      </article>
+    </div>
+  );
+}

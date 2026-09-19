@@ -1,0 +1,390 @@
+# 🔥 Eternal Flame | 守焰者
+
+> **薪火不灭，荣耀永燃**
+> 
+> *The Flame Endures, The Glory Burns Eternal*
+
+Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的对外展示、信息沉淀、招募审批与成员服务平台。
+
+---
+
+## 📖 项目概览
+
+**项目代号**：`flamekeeper`（守焰者）
+**正式站名**：Eternal Flame Guild Hub
+**中文名**：守焰者
+**Slogan**：薪火不灭，荣耀永燃
+**定位**：对外公会官网 + 账号与审批系统 + 内容管理后台 + 数据分析看板 + 插件解释库
+
+### 核心功能
+
+| 功能模块 | 说明 |
+| --- | --- |
+| 信息发布 | 公告、新闻、战报、活动、招募、维护通知 |
+| 入会指南 | 完整入会流程说明、招募要求、常见问题 |
+| 公会介绍 | 公会故事、管理层、规则、荣誉墙 |
+| 成员名册 | 公开成员列表，按职业专精着色 |
+| 数据分析 | 职业分布、装等分布、团本进度可视化 |
+| 插件库 | 精选插件推荐、WeakAuras 字符串、配置教程 |
+| 活动日历 | 团本、大秘境、PVP 活动报名 |
+| 媒体画廊 | 击杀截图、活动合照、视频集锦 |
+| 账号系统 | 邮箱注册、密码登录、入会审批 |
+| 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
+
+---
+
+## 🚀 技术栈
+
+| 类别 | 选型 | 版本 |
+| --- | --- | --- |
+| 框架 | [Next.js](https://nextjs.org/) (App Router) | 16.3 |
+| 语言 | TypeScript | 5.x |
+| UI 库 | React | 19.x |
+| 样式 | Tailwind CSS | 4.x |
+| 数据库 | SQLite（生产可用 Postgres 替换） | — |
+| ORM | Prisma | 6.x |
+| 认证 | NextAuth.js (Auth.js v5) | beta |
+| 密码哈希 | bcryptjs | 2.x |
+| 表单校验 | Zod | 3.x |
+| 图表 | Recharts | 2.x |
+| 图标 | lucide-react | latest |
+| 容器化 | Docker + Docker Compose | — |
+
+**架构特点**
+
+- **Next.js 16 App Router**：服务器组件 + 客户端组件混合，SEO 友好，首屏快
+- **Prisma + SQLite**：零运维成本部署；schema 设计兼容 Postgres，可一键切换
+- **NextAuth.js (JWT session)**：邮箱+密码认证，无外部依赖
+- **Tailwind CSS 4 自定义主题**：基于 WoW 设计 Token（金色/橙色/职业色），统一视觉
+- **Canvas 粒子背景**：火焰余烬动画，营造艾泽拉斯氛围
+
+---
+
+## 📦 项目结构
+
+```
+flamekeeper/
+├── prisma/
+│   ├── schema.prisma            # 数据库 schema（参考 PLAN.md 数据模型）
+│   ├── seed.ts                  # 初始化 admin 账号与默认数据
+│   └── dev.db                   # SQLite 数据库（开发环境）
+├── public/                      # 静态资源
+├── src/
+│   ├── app/
+│   │   ├── api/                 # API 路由（auth/register, posts, addons 等）
+│   │   ├── auth/                # 登录、注册、忘记密码
+│   │   ├── admin/               # 管理后台（官员/管理员）
+│   │   ├── news/[slug]/         # 文章详情
+│   │   ├── guide/               # 入会指南
+│   │   ├── about/               # 公会介绍
+│   │   ├── roster/              # 成员名册
+│   │   ├── analytics/           # 数据分析
+│   │   ├── addons/              # 插件库
+│   │   ├── events/              # 活动日历
+│   │   ├── gallery/             # 媒体画廊
+│   │   ├── contact/             # 联系我们
+│   │   ├── profile/             # 个人中心
+│   │   ├── layout.tsx           # 全局布局（含 Header/Footer/粒子背景）
+│   │   ├── page.tsx             # 首页
+│   │   ├── globals.css          # Tailwind 全局样式与 WoW 主题
+│   │   └── not-found.tsx        # 404 页面
+│   ├── components/
+│   │   ├── layout/              # Header、Footer、SceneBackground
+│   │   ├── providers.tsx        # SessionProvider + Toaster
+│   │   └── admin/               # 管理后台占位组件
+│   ├── lib/
+│   │   ├── prisma.ts            # Prisma 单例
+│   │   ├── auth.ts              # NextAuth 配置
+│   │   ├── utils.ts             # cn()、日期格式化、WoW 职业色映射
+│   │   ├── validations.ts       # Zod schema
+│   │   └── auth-utils.ts        # 角色权限工具函数
+│   ├── styles/
+│   │   └── globals.css          # WoW 设计 Token + Tailwind
+│   └── types/                   # TypeScript 类型
+├── Dockerfile                   # 多阶段构建（builder + runner）
+├── docker-compose.yml           # 一键启动 + 数据卷持久化
+├── .dockerignore
+├── .env.example
+├── package.json
+├── next.config.ts               # standalone output
+├── tailwind.config / postcss.config
+├── PLAN.md                      # 项目定案（来自原始需求）
+└── README.md                    # 本文件
+```
+
+---
+
+## 🎨 设计语言
+
+**WoW 暗黑公会风**：参考魔兽世界的 UI 配色与美术风格，营造「公会大厅」的庄严感。
+
+### 视觉系统
+
+- **主色调**：`#F0B823`（金色）作为品牌色与 CTA 按钮色
+- **辅色**：`#FF7D0A`（火焰橙）作为强调色，`#C41E3A`（部落红）/`#0070DE`（联盟蓝）作为阵营色
+- **背景**：深黑 `#0A0A0A` → `#1A1A1E`，叠加 canvas 粒子余烬动画
+- **字体**：[Cinzel](https://fonts.google.com/specimen/Cinzel)（展示字体，西方古典风）+ Noto Sans SC（正文，中文优化）
+- **职业配色**：13 个职业各对应一个高识别度颜色（参考 WoW 职业色板）
+
+### 主题 Token
+
+所有颜色/字体/阴影定义在 `src/styles/globals.css` 的 `@theme` 中，方便二次定制。
+
+---
+
+## 🛠️ 快速开始
+
+### 方式一：本地开发（Node 24）
+
+需要本机 Node.js 24.x 与 npm 11+。
+
+```bash
+# 1. 克隆项目
+git clone <repo-url> flamekeeper
+cd flamekeeper
+
+# 2. 安装依赖
+npm install
+
+# 3. 初始化环境变量
+cp .env.example .env
+# 默认 SQLite 文件位于 prisma/dev.db
+
+# 4. 初始化数据库 + 种子数据
+npm run db:push       # 创建表
+npm run db:seed       # 创建默认 admin 账号
+
+# 5. 启动开发服务器
+npm run dev
+```
+
+打开浏览器访问 http://localhost:3000
+
+> **默认管理员账号**：`admin@eternalflame.gg` / `admin123`
+> 首次登录后请立即修改密码（在「个人中心」→「修改密码」功能上线后）。
+
+### 方式二：Docker 部署（推荐生产）
+
+适用于 Linux 服务器、NAS、群晖、Portainer 等环境。
+
+```bash
+# 1. 构建并启动
+docker compose up -d --build
+
+# 2. 查看日志
+docker compose logs -f flamekeeper
+
+# 3. 访问
+# http://<server-ip>:3000
+```
+
+Docker 自动完成以下操作：
+- 多阶段构建，镜像体积小（约 200MB）
+- 启动时自动执行 `prisma db push`（首次启动会建表）
+- 数据库文件通过 named volume `flamekeeper-data` 持久化
+- 健康检查 + 自动重启
+
+#### 自定义环境变量
+
+在 `docker-compose.yml` 同目录创建 `.env` 文件（或修改 `docker-compose.yml`）：
+
+```env
+AUTH_SECRET=<随机生成的 32 位字符串>
+AUTH_URL=https://your-domain.com
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+```
+
+**生成 AUTH_SECRET**：
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+> ⚠️ **生产环境务必修改默认 admin 密码！** 进入容器执行：
+> ```bash
+> docker compose exec flamekeeper npx tsx -e "
+>   import { PrismaClient } from '@prisma/client';
+>   import { hash } from 'bcryptjs';
+>   const p = new PrismaClient();
+>   const h = await hash('新密码', 12);
+>   await p.user.update({ where: { email: 'admin@eternalflame.gg' }, data: { passwordHash: h } });
+>   console.log('密码已更新');
+>   await p.\$disconnect();
+> "
+> ```
+
+### 方式三：Portainer / 容器面板部署
+
+1. 在 Portainer 中选择 `Stacks` → `Add stack`
+2. 将 `docker-compose.yml` 内容粘贴进去
+3. 设置环境变量
+4. 部署即可
+
+### 切换到 PostgreSQL（可选）
+
+如需多人协作或更高并发，可在 `prisma/schema.prisma` 修改 `datasource`：
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+并修改 `.env`：
+```env
+DATABASE_URL="postgresql://user:pass@host:5432/flamekeeper?schema=public"
+```
+
+---
+
+## 📋 脚本命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `npm run dev` | 启动开发服务器（端口 3000） |
+| `npm run build` | 生产构建（standalone output） |
+| `npm start` | 启动生产服务器 |
+| `npm run db:generate` | 生成 Prisma Client |
+| `npm run db:push` | 推送 schema 到数据库 |
+| `npm run db:studio` | 打开 Prisma Studio（GUI 数据查看） |
+| `npm run db:seed` | 填充种子数据 |
+
+---
+
+## 🗺️ 路线图
+
+依据 [PLAN.md](./PLAN.md) 的功能优先级：
+
+### ✅ 已完成（P0 — MVP）
+
+- [x] 项目脚手架（Next.js 16 + TS + Tailwind 4）
+- [x] WoW 主题系统（金色/职业色/火焰粒子）
+- [x] 数据库 schema（15 个模型，参考 PLAN 数据模型）
+- [x] 账号系统：邮箱+密码、bcrypt 哈希
+- [x] 入会注册流程（含角色资料、自动生成申请编号）
+- [x] 首页（Hero、统计、新闻预览、公会介绍 CTA）
+- [x] 入会指南（流程、招募要求、FAQ）
+- [x] 公会介绍（故事、管理层、规则）
+- [x] 信息发布列表 + 详情
+- [x] 成员名册（13 职业着色）
+- [x] 插件库、活动日历、数据分析、画廊、联系页（基础版）
+- [x] 管理后台骨架（官员/管理员角色控制）
+- [x] Docker 多阶段构建 + 健康检查 + 数据卷
+- [x] README + LICENSE
+
+### ✅ 已完成（P1 — 重要增强）
+
+- [x] **申请审批完整流程**：通过/拒绝/需补充信息（官员操作、自动升级用户角色、写入审计日志）
+- [x] **文章编辑器**：Markdown 编辑 + 封面图 + 分类 + 置顶 + 标签 + 发布/下线切换
+- [x] **Recharts 真实数据图表**：职能饼图、职业饼图、装等柱状图（自动从成员数据生成）
+- [x] **插件库管理**：WA 字符串复制、下载链接、Markdown 教程渲染
+- [x] **插件详情页**：`/addons/[slug]` 含一键复制 WA 字符串
+- [x] **活动管理**：创建/删除活动（带起止时间、名额、地点、类型）
+- [x] **媒体画廊管理**：图床 URL 上传、相册分类、缩略图预览
+- [x] **成员名册 CRUD**：添加/编辑/删除角色（管理员可批量录入）
+- [x] **系统设置**：KOOK 邀请链接、微信二维码、招募状态、官员邮箱等
+- [x] **修改密码**：个人中心可改密（bcrypt 加固）
+- [x] **个人申请查询**：用户登录后可查看自己的入会申请状态
+- [x] **审计日志**：审批、修改密码等关键操作留痕
+
+### 🚧 待办（P2 — 进阶）
+
+- [ ] 邮件通知（注册结果、密码重置）
+- [ ] 活动报名（带替补机制）
+- [ ] 文件上传（本地存储 + S3 适配器）
+- [ ] WCL / Raider.IO 数据同步
+- [ ] KOOK 机器人通知
+- [ ] 多语言（i18n）
+- [ ] 评论/反馈
+- [ ] 直播聚合
+
+---
+
+## 🔐 安全建议
+
+部署到生产环境前，请务必完成以下检查：
+
+- [ ] 修改 `AUTH_SECRET` 为随机 32+ 位字符串
+- [ ] 修改默认 admin 账号密码
+- [ ] 如启用 HTTPS，配置反向代理（Nginx / Caddy）
+- [ ] 定期备份 SQLite 数据库卷：`docker volume ls` → 备份 `flamekeeper-data`
+- [ ] 配置防火墙，仅暴露 80/443 端口
+- [ ] （可选）启用 Cloudflare 等 CDN 防 DDoS
+
+---
+
+## 🌐 部署场景参考
+
+| 场景 | 推荐方式 |
+| --- | --- |
+| 本地开发 | `npm run dev` |
+| NAS（群晖/威联通） | Docker Compose + Portainer |
+| 自建服务器 | Docker Compose + Nginx 反向代理 |
+| 家用路由器 + 小主机 | Docker Compose + 内网穿透（frp） |
+| 云服务器（VPS） | Docker Compose + Caddy/Nginx + Let's Encrypt |
+| Serverless | 暂不支持（需改为 Vercel/Cloudflare Pages 适配方案） |
+
+---
+
+## 📝 数据模型一览
+
+参考 PLAN.md 第九节，主要模型：
+
+- `User` —— 账号、邮箱、密码、角色、状态
+- `Profile` —— 用户档案
+- `Application` —— 入会申请（含申请编号、审核状态）
+- `Post` —— 信息发布（分类/置顶/标签）
+- `Page` —— 静态页面（公会介绍等）
+- `Character` —— 魔兽角色（关联用户）
+- `RaidProgress` —— 团本进度
+- `AnalyticsSnapshot` —— 分析快照
+- `Addon` —— 插件（分类/WA 字符串）
+- `Event` + `EventSignup` —— 活动与报名
+- `Media` —— 图片与视频
+- `Setting` —— 系统设置（KOOK 链接、微信二维码等）
+- `AuditLog` —— 管理操作日志
+
+---
+
+## 🤝 贡献指南
+
+1. Fork 本仓库
+2. 创建特性分支：`git checkout -b feat/your-feature`
+3. 提交改动：`git commit -m 'feat: add something'`
+4. 推送分支：`git push origin feat/your-feature`
+5. 提交 Pull Request
+
+### 开发约定
+
+- TypeScript strict 模式
+- 优先使用 Server Components，必要时使用 `"use client"`
+- 不使用 Lombok（这是 Java 约定，但 TS 项目中请用 TypeScript 原生类型）
+- 业务异常抛 `Error`，在 API 路由统一处理
+- API 返回统一 JSON 格式：`{ success: boolean, data?: T, error?: string }`
+
+---
+
+## 📜 版权声明
+
+- **本项目代码**：MIT 许可证
+- **魔兽世界（World of Warcraft）**：暴雪娱乐（Blizzard Entertainment）注册商标
+- **本项目与暴雪娱乐、网易公司无任何关联**，仅为公会社区工具
+
+---
+
+## 🔥 守焰者的誓言
+
+```
+薪火不灭，荣耀永燃。
+我们是火焰的守护者，
+也是彼此的战友。
+
+在艾泽拉斯的每一个日夜里，
+我们并肩作战，守护彼此。
+
+For the Eternal Flame!
+```
+
+---
+
+**For the Eternal Flame!** 🔥

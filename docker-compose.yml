@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  flamekeeper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flamekeeper-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - AUTH_SECRET=${AUTH_SECRET:-change-me-in-production}
+      - AUTH_URL=${AUTH_URL:-http://localhost:3000}
+      - DATABASE_URL=file:/app/data/prod.db
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    volumes:
+      # Persist SQLite database
+      - flamekeeper-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/settings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  flamekeeper-data:
+    name: flamekeeper-data
