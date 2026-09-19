@@ -195,25 +195,25 @@ export default async function HomePage() {
             ))}
             {!isMember && (
               <Link
-                href="/auth/register"
+                href="/guide"
                 className="flex flex-col items-center justify-center bg-bg-card border border-dashed border-border-gold rounded p-6 hover:bg-bg-card-hover transition-all text-center"
               >
                 <Flame className="w-8 h-8 text-wow-orange mb-4" />
-                <h3 className="font-bold text-wow-gold mb-2">注册解锁更多</h3>
-                <p className="text-sm text-text-muted">成员名册 · 工具分享 · 数据分析 · 活动日历</p>
+                <h3 className="font-bold text-wow-gold mb-2">了解入会流程</h3>
+                <p className="text-sm text-text-muted">六步详解 · 招募要求 · 常见问题</p>
               </Link>
             )}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
+      {/* CTA — push users through the guide flow first */}
       <section className="py-20 relative">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(240,184,35,0.08)_0%,transparent_70%)]" />
         <div className="relative z-10 text-center max-w-2xl mx-auto px-4">
           <Flame className="w-12 h-12 text-wow-orange mx-auto mb-6" />
           <h2 className="font-display text-3xl font-bold text-wow-gold text-glow mb-4">
-            加入 Eternal Flame
+            准备好了吗？
           </h2>
           <p className="text-text-secondary mb-8">
             无论你是团队副本的核心成员、大秘境的冲层高手，
@@ -227,6 +227,9 @@ export default async function HomePage() {
             开始你的入会之旅
             <ArrowRight className="w-5 h-5" />
           </Link>
+          <p className="text-xs text-text-muted mt-4">
+            阅读 <Link href="/guide" className="text-wow-gold hover:underline">入会指南</Link> 了解完整流程后再注册
+          </p>
         </div>
       </section>
     </div>

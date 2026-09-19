@@ -182,7 +182,7 @@ export default function GuidePage() {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* CTA — at the very end of the membership process */}
       <section className="py-16 text-center">
         <div className="max-w-xl mx-auto px-4">
           <Flame className="w-10 h-10 text-wow-orange mx-auto mb-4" />
@@ -192,11 +192,14 @@ export default function GuidePage() {
           </p>
           <Link
             href="/auth/register"
-            className="inline-flex items-center gap-2 px-8 py-3 bg-wow-gold text-black font-bold rounded hover:bg-wow-gold-bright transition-all"
+            className="inline-flex items-center gap-2 px-8 py-3 bg-wow-gold text-black font-bold rounded hover:bg-wow-gold-bright transition-all shadow-gold"
           >
             现在注册
             <ArrowRight className="w-4 h-4" />
           </Link>
+          <p className="text-xs text-text-muted mt-4">
+            已是公会成员？<Link href="/auth/login" className="text-wow-gold hover:underline">前往登录</Link>
+          </p>
         </div>
       </section>
     </div>
