@@ -1,6 +1,7 @@
 import { Flame, Shield, Swords, Users, ArrowRight, Star, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 
 async function getHomeData() {
@@ -26,7 +27,19 @@ async function getHomeData() {
 }
 
 export default async function HomePage() {
-  const { posts, memberCount, raidProgress } = await getHomeData();
+  const [{ posts, memberCount, raidProgress }, session] = await Promise.all([
+    getHomeData(),
+    auth(),
+  ]);
+  const isLoggedIn = !!session;
+
+  // Member-only service cards are hidden for anonymous visitors
+  const features = [
+    { icon: Swords, title: "团队副本", desc: "固定团本活动，稳定Farm，开荒冲进度", publicCard: true },
+    { icon: Users, title: "成员名册", desc: "查看公会成员职业、专精与进度", publicCard: false },
+    { icon: Star, title: "插件库", desc: "精选插件推荐、WA字符串与配置教程", publicCard: false },
+    { icon: Shield, title: "数据分析", desc: "职业分布、装等分布、出勤趋势", publicCard: false },
+  ].filter((f) => f.publicCard || isLoggedIn);
 
   return (
     <div>
@@ -172,18 +185,23 @@ export default async function HomePage() {
             公会服务
           </h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: Swords, title: "团队副本", desc: "固定团本活动，稳定Farm，开荒冲进度" },
-              { icon: Users, title: "成员名册", desc: "查看公会成员职业、专精与进度" },
-              { icon: Star, title: "插件库", desc: "精选插件推荐、WA字符串与配置教程" },
-              { icon: Shield, title: "数据分析", desc: "职业分布、装等分布、出勤趋势" },
-            ].map((feature, i) => (
+            {features.map((feature, i) => (
               <div key={i} className="bg-bg-card border border-border-default rounded p-6 hover:border-border-gold transition-all">
                 <feature.icon className="w-8 h-8 text-wow-gold mb-4" />
                 <h3 className="font-bold text-text-primary mb-2">{feature.title}</h3>
                 <p className="text-sm text-text-muted">{feature.desc}</p>
               </div>
             ))}
+            {!isLoggedIn && (
+              <Link
+                href="/auth/register"
+                className="flex flex-col items-center justify-center bg-bg-card border border-dashed border-border-gold rounded p-6 hover:bg-bg-card-hover transition-all text-center"
+              >
+                <Flame className="w-8 h-8 text-wow-orange mb-4" />
+                <h3 className="font-bold text-wow-gold mb-2">注册解锁更多</h3>
+                <p className="text-sm text-text-muted">成员名册 · 插件库 · 数据分析 · 活动日历</p>
+              </Link>
+            )}
           </div>
         </div>
       </section>

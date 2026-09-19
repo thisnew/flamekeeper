@@ -1,0 +1,22 @@
+feat: gate member pages behind login (roster/analytics/addons/events)
+
+Anonymous visitors can no longer view the member-only sections.
+
+Page guards (server components, redirect to /auth/login):
+- /roster      -> auth() + redirect
+- /analytics   -> auth() + redirect
+- /addons      -> auth() + redirect
+- /events      -> auth() + redirect
+
+Client guard:
+- /addons/[slug] -> useSession() + router.replace when unauthenticated
+
+Hidden from UI when not logged in:
+- Header nav: member items flagged requiresAuth, filtered by user
+- Footer links: roster/addons/analytics/events only rendered when logged in
+- Home page service cards: member cards hidden for anonymous, replaced
+  with a "注册解锁更多" card linking to /auth/register
+
+Verified:
+- anonymous: 4 routes return 307, nav/footer omit the 4 links
+- logged in: 4 routes return 200, nav/footer show the 4 links

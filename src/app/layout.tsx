@@ -55,7 +55,7 @@ export default async function RootLayout({
           <SceneBackground />
           <Header user={sessionUser} />
           <main className="flex-1 relative z-10 page-enter">{children}</main>
-          <Footer />
+          <Footer user={sessionUser} />
         </Providers>
       </body>
     </html>

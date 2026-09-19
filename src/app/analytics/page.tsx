@@ -1,5 +1,7 @@
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { BarChart3, Users, Sword, Shield, TrendingUp, Heart } from "lucide-react";
 import {
   RoleChart,
@@ -60,6 +62,9 @@ async function getAnalytics() {
 }
 
 export default async function AnalyticsPage() {
+  const session = await auth();
+  if (!session) redirect("/auth/login");
+
   const data = await getAnalytics();
 
   return (

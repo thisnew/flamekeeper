@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ArrowLeft, Copy, CheckCircle, Download, ExternalLink, Loader2, Puzzle } from "lucide-react";
 import toast from "react-hot-toast";
@@ -28,12 +29,22 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function AddonDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const { status } = useSession();
   const slug = params?.slug as string;
   const [addon, setAddon] = useState<Addon | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
+  // Redirect unauthenticated users to login
   useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/auth/login");
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
     fetch("/api/addons")
       .then((r) => r.json())
       .then((d) => {
@@ -42,7 +53,7 @@ export default function AddonDetailPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [slug]);
+  }, [slug, status]);
 
   const copyWA = async () => {
     if (!addon?.waString) return;

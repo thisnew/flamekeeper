@@ -1,7 +1,9 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Puzzle, Download, Copy } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "插件库",
@@ -30,6 +32,9 @@ async function getAddons() {
 }
 
 export default async function AddonsPage() {
+  const session = await auth();
+  if (!session) redirect("/auth/login");
+
   const addons = await getAddons();
 
   return (

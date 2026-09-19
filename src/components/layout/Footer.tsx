@@ -1,7 +1,17 @@
 import Link from "next/link";
 import { Flame, Heart } from "lucide-react";
 
-export default function Footer() {
+interface SessionUser {
+  id?: string;
+  email?: string | null;
+  name?: string | null;
+  role?: string;
+  status?: string;
+}
+
+export default function Footer({ user }: { user: SessionUser | null }) {
+  const isLoggedIn = !!user;
+
   return (
     <footer className="relative z-10 border-t border-border-gold bg-bg-secondary/50">
       {/* Decorative top line */}
@@ -30,7 +40,9 @@ export default function Footer() {
               <Link href="/news" className="text-sm text-text-muted hover:text-wow-gold transition-colors">信息发布</Link>
               <Link href="/guide" className="text-sm text-text-muted hover:text-wow-gold transition-colors">入会指南</Link>
               <Link href="/about" className="text-sm text-text-muted hover:text-wow-gold transition-colors">公会介绍</Link>
-              <Link href="/roster" className="text-sm text-text-muted hover:text-wow-gold transition-colors">成员名册</Link>
+              {isLoggedIn && (
+                <Link href="/roster" className="text-sm text-text-muted hover:text-wow-gold transition-colors">成员名册</Link>
+              )}
               <Link href="/contact" className="text-sm text-text-muted hover:text-wow-gold transition-colors">联系我们</Link>
             </div>
           </div>
@@ -39,10 +51,19 @@ export default function Footer() {
           <div>
             <h4 className="font-display text-sm text-wow-gold mb-3 tracking-wider">资源</h4>
             <div className="flex flex-col gap-1.5">
-              <Link href="/addons" className="text-sm text-text-muted hover:text-wow-gold transition-colors">插件库</Link>
-              <Link href="/analytics" className="text-sm text-text-muted hover:text-wow-gold transition-colors">数据分析</Link>
-              <Link href="/events" className="text-sm text-text-muted hover:text-wow-gold transition-colors">活动日历</Link>
+              {isLoggedIn && (
+                <>
+                  <Link href="/addons" className="text-sm text-text-muted hover:text-wow-gold transition-colors">插件库</Link>
+                  <Link href="/analytics" className="text-sm text-text-muted hover:text-wow-gold transition-colors">数据分析</Link>
+                  <Link href="/events" className="text-sm text-text-muted hover:text-wow-gold transition-colors">活动日历</Link>
+                </>
+              )}
               <Link href="/gallery" className="text-sm text-text-muted hover:text-wow-gold transition-colors">媒体画廊</Link>
+              {!isLoggedIn && (
+                <Link href="/auth/register" className="text-sm text-wow-gold hover:text-wow-gold-bright transition-colors">
+                  注册解锁成员内容 →
+                </Link>
+              )}
             </div>
           </div>
 

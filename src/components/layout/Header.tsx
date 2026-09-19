@@ -7,15 +7,15 @@ import { cn } from "@/lib/utils";
 import UserMenu from "@/components/layout/UserMenu";
 
 const navItems = [
-  { href: "/", label: "首页" },
-  { href: "/news", label: "信息发布" },
-  { href: "/guide", label: "入会指南" },
-  { href: "/about", label: "公会介绍" },
-  { href: "/roster", label: "成员名册" },
-  { href: "/analytics", label: "数据分析" },
-  { href: "/addons", label: "插件库" },
-  { href: "/events", label: "活动日历" },
-  { href: "/gallery", label: "画廊" },
+  { href: "/", label: "首页", requiresAuth: false },
+  { href: "/news", label: "信息发布", requiresAuth: false },
+  { href: "/guide", label: "入会指南", requiresAuth: false },
+  { href: "/about", label: "公会介绍", requiresAuth: false },
+  { href: "/roster", label: "成员名册", requiresAuth: true },
+  { href: "/analytics", label: "数据分析", requiresAuth: true },
+  { href: "/addons", label: "插件库", requiresAuth: true },
+  { href: "/events", label: "活动日历", requiresAuth: true },
+  { href: "/gallery", label: "画廊", requiresAuth: false },
 ];
 
 interface SessionUser {
@@ -33,6 +33,11 @@ export default function Header({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  // Hide member-only nav items when not logged in
+  const visibleNavItems = navItems.filter(
+    (item) => !item.requiresAuth || !!user
+  );
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -67,7 +72,7 @@ export default function Header({
 
           {/* Desktop Nav */}
           <nav className="hidden lg:flex items-center gap-1">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -97,7 +102,7 @@ export default function Header({
       {mobileOpen && (
         <div className="lg:hidden border-t border-border-default bg-bg-secondary">
           <nav className="flex flex-col px-4 py-3">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

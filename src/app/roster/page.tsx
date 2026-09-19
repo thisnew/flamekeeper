@@ -1,6 +1,8 @@
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Shield, Search } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { CLASS_COLORS } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -28,6 +30,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default async function RosterPage() {
+  const session = await auth();
+  if (!session) redirect("/auth/login");
+
   const characters = await getRoster();
 
   return (
