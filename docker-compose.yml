@@ -32,9 +32,19 @@ services:
 
   # ---- 应用 ----
   flamekeeper:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # 部署 = 拉取 CI 构建好的镜像（GitHub Actions → 阿里云 ACR）。
+    # 固定版本可用环境变量覆盖：FLAMEKEEPER_IMAGE=...:git-<sha>
+    #
+    # 为什么默认不在部署机上 build：
+    #   Dockerfile 的 `npm ci --ignore-scripts` 会跳过 @prisma/engines 的
+    #   postinstall（引擎下载），于是 `npx prisma generate` 必须在构建期
+    #   从 binaries.prisma.sh 现下载约 40MB 引擎二进制。国内网络上这一步
+    #   极易超时/ECONNRESET，表现为构建长时间卡在 `npx prisma generate`。
+    #   GitHub Actions 的 runner 网络正常，把这部分放在 CI 做更稳更快。
+    #
+    # 确实需要在部署机上本地构建时，叠加 override 文件：
+    #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+    image: ${FLAMEKEEPER_IMAGE:-crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew/flamekeeper:latest}
     container_name: flamekeeper-web
     restart: unless-stopped
     depends_on:

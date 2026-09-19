@@ -1,0 +1,21 @@
+# 可选的「本地构建」override —— 默认部署形态是拉取 ACR 镜像，不含构建。
+#
+# 什么时候用：需要在部署机上从源码构建（例如 ACR 里还没有镜像、
+# 或要部署一个尚未推送到 ACR 的本地改动）。
+#
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# ⚠ 国内网络的注意点：Dockerfile 的 `npm ci --ignore-scripts` 跳过
+#   @prisma/engines 的 postinstall，因此 `npx prisma generate` 会在构建期
+#   访问 binaries.prisma.sh 下载引擎（约 40MB）。若这一步超时/卡住，
+#   可用镜像源构建：
+#     docker compose -f docker-compose.yml -f docker-compose.build.yml \
+#       build --build-arg PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma
+services:
+  flamekeeper:
+    # 本地构建产物用独立 tag，避免和 ACR 拉下来的镜像混淆
+    image: flamekeeper-local:dev
+    build:
+      context: .
+      dockerfile: Dockerfile

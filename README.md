@@ -218,15 +218,47 @@ npm run dev
 
 适用于 Linux 服务器、NAS、群晖、Portainer 等环境。
 
+> **默认是「拉镜像」模式，不是「本地构建」模式。**
+>
+> 镜像由 GitHub Actions 构建好推到阿里云 ACR（见方式四），
+> `docker-compose.yml` 里写的是 `image:` 而非 `build:`，所以部署只做
+> `docker pull`。这样部署机上**不跑 npm ci / prisma generate / next build**，
+> 速度从「5–15 分钟」降到「几秒到几十秒」。
+>
+> 为什么不在部署机上构建：`Dockerfile` 的 `npm ci --ignore-scripts` 会跳过
+> `@prisma/engines` 的 postinstall（引擎下载），于是 `npx prisma generate`
+> 必须在**构建期**从 `binaries.prisma.sh` 现下载约 40MB 引擎二进制。
+> 国内网络上这一步极易超时 / `ECONNRESET`，症状是构建**长时间卡在
+> `npx prisma generate`**。CI 的 runner 网络正常，把这活儿放那边做更稳。
+
 ```bash
-# 1. 构建并启动
-docker compose up -d --build
+# 1. 拉取镜像并启动
+docker compose up -d
 
 # 2. 查看日志
 docker compose logs -f flamekeeper
 
 # 3. 访问
 # http://<server-ip>:3000
+```
+
+**需要本地构建时**（例如 ACR 里还没有镜像）：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+> 若构建卡在 `prisma generate`，用国内镜像源：
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.build.yml \
+>   build --build-arg PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma
+> ```
+
+固定到某个具体版本（便于回滚）：
+
+```bash
+FLAMEKEEPER_IMAGE=crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew/flamekeeper:git-<sha> \
+  docker compose up -d
 ```
 
 Docker 自动完成以下操作：
@@ -334,7 +366,34 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 3. 设置环境变量
 4. 部署即可
 
+> ⚠ **ACR 是私有仓库，Portainer 必须先登录**，否则拉取会报
+> `unauthorized: authentication required`。
+>
+> `Registries` → `Add registry` → 选 `Custom registry`：
+>
+> | 字段 | 值 |
+> | --- | --- |
+> | Registry URL | `crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com` |
+> | Username | 阿里云 ACR 凭证用户名（与 GitHub Secret `ALIYUN_ACR_USERNAME` 同一个） |
+> | Password | 对应密码 |
+>
+> 保存后建议用 `Registries` 列表里的 **Test / Browse** 验证是否生效
+> —— 能列出 `thisnew/flamekeeper` 才算配置成功。
+>
+> 因为 compose 是 `image:` 模式（无 `build:`），Portainer 这里**只会拉取，
+> 不会再触发构建**。若仍看到 "Building…"，说明 stack 用的还是旧版 compose。
+>
+> 日志里出现 `Warning: buildx isn't installed` 已经**无关紧要**了 ——
+> 那只在需要 build 时才有影响，拉镜像模式不碰 buildx。
+
 ### 方式四：CI/CD 自动构建（GitHub Actions → 阿里云 ACR）
+
+> **这两个环节是串起来的**：方式四负责**构建**并推送到 ACR，
+> 方式二/三负责**拉取**并运行。部署机上不重复构建。
+>
+> —— 但在本次修复之前，`docker-compose.yml` 用的是 `build:`，
+> 等于把 ACR 里构建好的镜像**完全忽略**，Portainer 每次部署都从源码
+> 重新构建一遍。这正是「部署很慢」的根因。
 
 工作流：`.github/workflows/docker-publish.yml`
 
