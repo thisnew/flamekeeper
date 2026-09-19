@@ -7,6 +7,7 @@ services:
     container_name: flamekeeper-db
     restart: unless-stopped
     environment:
+      # Anchor substitution so the healthcheck sees the same user/db as the container
       - POSTGRES_USER=${POSTGRES_USER:-flamekeeper}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-flamekeeper_pg_pw}
       - POSTGRES_DB=${POSTGRES_DB:-flamekeeper}
@@ -19,11 +20,14 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flamekeeper} -d ${POSTGRES_DB:-flamekeeper}"]
+      # 必须用 CMD-SHELL 而不是 CMD，因为 pg_isready 不是 Windows 路径上的可执行文件
+      test:
+        - CMD-SHELL
+        - "pg_isready -U $${POSTGRES_USER:-flamekeeper} -d $${POSTGRES_DB:-flamekeeper}"
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
+      start_period: 20s
 
   # ---- 应用 ----
   flamekeeper:
@@ -58,11 +62,14 @@ services:
       # 成员上传的附件（<=10MB 分享）
       - flamekeeper-uploads:/app/public/uploads
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/settings"]
+      # /api/health 是公开的轻量级存活检查，不依赖数据库 / 鉴权；
+      # 比 /api/settings 更安全（settings 接口未来可能要求登录）
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      # 首次启动要 init-db + seed，可能稍久；给 60s 缓冲
+      start_period: 60s
 
 volumes:
   flamekeeper-pgdata:

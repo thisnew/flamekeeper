@@ -202,7 +202,8 @@ Docker 自动完成以下操作：
 - 应用等待 `db` 健康检查通过后才启动（`depends_on: condition: service_healthy`）
 - 启动时由 `prisma/init-db.mjs` 建表（DDL 在构建阶段由 schema 生成）、`prisma/seed.mjs` 写入初始数据
 - 成员附件存于 `flamekeeper-uploads` 卷
-- 应用健康检查 + 自动重启
+- 应用健康检查：`GET /api/health`（200 = 存活；`?deep=1` 加跑 `SELECT 1` 检查 DB），失败 503
+- 自动重启
 
 #### 自定义环境变量
 

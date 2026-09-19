@@ -1,0 +1,17 @@
+fix(docker): make healthchecks robust + add /api/health endpoint
+
+db (postgres) healthcheck:
+  - Was: single-line "pg_isready -U ${POSTGRES_USER:-flamekeeper} ..."
+    Compose interpolates env vars, but CMD-SHELL is more reliable than
+    CMD for non-Windows binaries inside the container, and lets us use $
+    to defer expansion to the container's shell.
+  - Now: CMD-SHELL with $$-escaped args, retries 5->10,
+    start_period 10s->20s.
+
+flamekeeper app healthcheck:
+  - Switched from /api/settings (admin-gated) to /api/health (public):
+      GET /api/health         -> { status: "ok" }                  (cheap liveness)
+      GET /api/health?deep=1  -> + Prisma SELECT 1; 503 if DB down
+  - start_period 20s -> 60s (first boot runs init-db + seed).
+
+README updated.
