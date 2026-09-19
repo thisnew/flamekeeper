@@ -13,5 +13,6 @@ docker-compose.yml
 prisma/dev.db
 prisma/dev.db-journal
 data/
+public/uploads
 .reasonix
 .claude

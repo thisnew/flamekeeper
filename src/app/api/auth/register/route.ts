@@ -16,7 +16,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email, password, nickname, characterName, server, faction, class: wowClass, spec, itemLevel, raidExperience, playableTimes, kookId, wechatId } = validated.data;
+    const { password, nickname, characterName, server, faction, class: wowClass, spec, itemLevel, raidExperience, playableTimes, kookId, wechatId } = validated.data;
+    const email = validated.data.email.trim().toLowerCase();
 
     // Check existing user
     const existing = await prisma.user.findUnique({ where: { email } });

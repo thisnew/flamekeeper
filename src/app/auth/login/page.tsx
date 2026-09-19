@@ -7,73 +7,103 @@ import Link from "next/link";
 import { Flame, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
-const ERROR_MESSAGES: Record<string, string> = {
-  CredentialsSignin: "邮箱或密码错误",
-  MissingCSRF: "会话校验失败，请刷新页面重试",
-  AccessDenied: "账号未通过审核或已被禁用",
-  Verification: "请先验证邮箱",
-  Configuration: "服务器认证配置错误，请联系管理员",
+/** Reasons returned by auth.ts `authorize` via CredentialsSignin.code */
+const CODE_MESSAGES: Record<string, string> = {
+  missing_fields: "请输入邮箱和密码",
+  user_not_found: "该邮箱尚未注册，请先注册账号",
+  wrong_password: "密码错误，请重新输入",
+  no_password: "该账号未设置密码，请联系官员",
+  email_unverified: "邮箱尚未验证，请先完成邮箱验证",
+  account_rejected: "你的入会申请已被拒绝，如有疑问请联系官员",
 };
+
+/** NextAuth-level error types (from the ?error= redirect / result.error) */
+const ERROR_MESSAGES: Record<string, string> = {
+  CredentialsSignin: "登录失败：邮箱或密码不正确",
+  MissingCSRF: "会话校验失败，请刷新页面后重试",
+  AccessDenied: "访问被拒绝：账号未通过审批或已被停用",
+  Verification: "验证链接无效或已过期，请重新获取",
+  Configuration: "服务器认证配置错误，请联系管理员",
+  UntrustedHost: "服务器未信任当前域名，请联系管理员",
+};
+
+function resolveMessage(error?: string | null, code?: string | null): string | null {
+  if (code && CODE_MESSAGES[code]) return CODE_MESSAGES[code];
+  if (error && ERROR_MESSAGES[error]) return ERROR_MESSAGES[error];
+  if (error) return `登录失败：${error}`;
+  return null;
+}
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
+  const urlCode = searchParams.get("code");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSubmitError(null);
 
     try {
       // Step 1: explicitly fetch CSRF token (NextAuth v5 requirement)
       const csrfToken = await getCsrfToken();
 
-      // Step 2: signIn with redirect:false so we can show errors inline
+      // Step 2: signIn with redirect:false so we can show errors inline.
+      // redirectTo MUST be set — otherwise NextAuth uses the current page
+      // (the login page) as the callback and we bounce back to /auth/login.
       const result = await signIn("credentials", {
         email,
         password,
         csrfToken,
         redirect: false,
+        redirectTo: "/",
       });
 
       if (!result) {
-        toast.error("登录请求失败，请重试");
+        const msg = "登录请求失败，请重试";
+        setSubmitError(msg);
+        toast.error(msg);
         return;
       }
 
-      if (result.error) {
-        toast.error(ERROR_MESSAGES[result.error] || `登录失败：${result.error}`);
+      if (result.error || result.code) {
+        const msg =
+          resolveMessage(result.error, (result as any).code) || "登录失败，请稍后再试";
+        setSubmitError(msg);
+        toast.error(msg);
         return;
       }
 
       if (!result.ok) {
-        toast.error("登录失败，请稍后再试");
+        const msg = "登录失败，请稍后再试";
+        setSubmitError(msg);
+        toast.error(msg);
         return;
       }
 
-      // Step 3: success — toast + force navigate with full reload.
-      // We MUST use window.location (not router.push) because:
-      //   - The Header reads session via server-side `auth()` in layout.tsx
-      //   - router.push + router.refresh() only re-renders the current page;
-      //     the server-component layout (which holds Header) is not re-executed
-      //     in a way that picks up the new session cookie
-      //   - A full page load re-runs the server component, fetches the new
-      //     session, and renders the logged-in Header
-      toast.success("登录成功！");
-      // Use replace so user can't go back to login page
-      window.location.replace(result.url || "/");
+      // Step 3: success — toast + go to the home page with a full reload.
+      // We MUST use window.location (not router.push) because the Header reads
+      // the session via server-side auth() in layout.tsx; a client-side
+      // navigation would keep the old (anonymous) server-rendered Header.
+      toast.success("登录成功，正在进入...");
+      window.location.replace("/");
     } catch (err) {
       console.error("Login error:", err);
-      toast.error(err instanceof Error ? err.message : "登录失败，请稍后再试");
+      const msg = err instanceof Error ? err.message : "登录失败，请稍后再试";
+      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const errorMessage = urlError ? (ERROR_MESSAGES[urlError] || urlError) : null;
+  const urlMessage = resolveMessage(urlError, urlCode);
+  const errorMessage = submitError || urlMessage;
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">

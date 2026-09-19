@@ -33,8 +33,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+# Create data directory for SQLite and uploads directory for member attachments
+RUN mkdir -p /app/data /app/public/uploads && \
+    chown -R nextjs:nodejs /app/data /app/public/uploads
 
 USER nextjs
 

@@ -1,8 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { isOfficerOrAboveRole } from "@/lib/roles";
 
 export async function GET() {
   try {
+    const session = await auth();
+    const user = session?.user as any;
+    if (!user?.id || !isOfficerOrAboveRole(user.role)) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
+
     const list = await prisma.application.findMany({
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       include: { user: { select: { id: true, email: true, name: true, status: true } } },
@@ -16,6 +24,12 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const session = await auth();
+    const actor = session?.user as any;
+    if (!actor?.id || !isOfficerOrAboveRole(actor.role)) {
+      return NextResponse.json({ error: "无权操作" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { applicationId, action, note } = body as {
       applicationId: string;
@@ -35,7 +49,8 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "申请不存在" }, { status: 404 });
     }
 
-    const newStatus = action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "NEEDS_INFO";
+    const newStatus =
+      action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "NEEDS_INFO";
 
     await prisma.$transaction(async (tx) => {
       await tx.application.update({
@@ -43,13 +58,14 @@ export async function PATCH(req: NextRequest) {
         data: { status: newStatus, officerNote: note || null },
       });
 
-      // Promote user to MEMBER + APPROVED if approved
       if (action === "APPROVE") {
         await tx.user.update({
           where: { id: application.userId },
-          data: { status: "APPROVED", role: application.user.role === "USER" ? "MEMBER" : application.user.role },
+          data: {
+            status: "APPROVED",
+            role: application.user.role === "USER" ? "MEMBER" : application.user.role,
+          },
         });
-        // Create / link Character record
         const exists = await tx.character.findFirst({
           where: { userId: application.userId, name: application.characterName },
         });
@@ -94,5 +110,43 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     console.error("Applications PATCH:", error);
     return NextResponse.json({ error: "操作失败" }, { status: 500 });
+  }
+}
+
+// DELETE /api/applications?id=xxx — remove an application record
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await auth();
+    const actor = session?.user as any;
+    if (!actor?.id || !isOfficerOrAboveRole(actor.role)) {
+      return NextResponse.json({ error: "无权删除" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "缺少 id" }, { status: 400 });
+    }
+
+    const application = await prisma.application.findUnique({ where: { id } });
+    if (!application) {
+      return NextResponse.json({ error: "申请不存在" }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.application.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          userId: actor.id,
+          action: "APPLICATION_DELETE",
+          detail: `Deleted application ${application.applicationCode} (${application.characterName})`,
+        },
+      });
+    });
+
+    return NextResponse.json({ success: true, message: "申请已删除" });
+  } catch (error) {
+    console.error("Applications DELETE:", error);
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
   }
 }

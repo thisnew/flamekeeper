@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { CheckCircle, XCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Application {
@@ -64,6 +64,25 @@ export default function ApplicationsClient({ initial }: { initial: Application[]
     }
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`确定删除「${name}」的申请记录？此操作不可恢复。`)) return;
+    setActing(id);
+    try {
+      const res = await fetch(`/api/applications?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("申请已删除");
+        setList((prev) => prev.filter((a) => a.id !== id));
+      } else {
+        toast.error(data.error || "删除失败");
+      }
+    } catch {
+      toast.error("网络错误");
+    } finally {
+      setActing(null);
+    }
+  };
+
   if (list.length === 0) {
     return (
       <div className="text-center py-20 text-text-muted border border-border-default rounded bg-bg-card">
@@ -85,6 +104,15 @@ export default function ApplicationsClient({ initial }: { initial: Application[]
                   <span className="font-bold text-lg text-text-primary">{app.characterName}</span>
                   <span className="text-xs text-text-muted">{app.server}</span>
                   <span className={`text-sm font-bold ${status.color}`}>● {status.label}</span>
+                  <button
+                    onClick={() => handleDelete(app.id, app.characterName)}
+                    disabled={acting === app.id}
+                    className="ml-auto flex items-center gap-1 px-2.5 py-1 text-xs border border-wow-red/30 text-wow-red rounded hover:bg-wow-red/10 transition-colors disabled:opacity-50"
+                    title="删除该申请记录"
+                  >
+                    {acting === app.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                    删除
+                  </button>
                 </div>
                 <div className="text-sm text-text-muted space-y-1">
                   <p>{app.class} · {app.spec} · {app.faction === "Alliance" ? "联盟" : "部落"}</p>

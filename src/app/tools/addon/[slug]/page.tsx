@@ -80,15 +80,15 @@ export default function AddonDetailPage() {
       <div className="page-enter max-w-3xl mx-auto px-4 sm:px-6 py-12 text-center">
         <Puzzle className="w-12 h-12 mx-auto mb-4 text-text-muted opacity-50" />
         <p className="text-text-muted mb-4">插件未找到</p>
-        <Link href="/addons" className="text-wow-gold hover:underline">返回插件库</Link>
+        <Link href="/tools" className="text-wow-gold hover:underline">返回工具分享</Link>
       </div>
     );
   }
 
   return (
     <div className="page-enter max-w-4xl mx-auto px-4 sm:px-6 py-12">
-      <Link href="/addons" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-wow-gold mb-8">
-        <ArrowLeft className="w-4 h-4" /> 返回插件库
+      <Link href="/tools" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-wow-gold mb-8">
+        <ArrowLeft className="w-4 h-4" /> 返回工具分享
       </Link>
 
       <div className="bg-bg-card border border-border-default rounded p-8 mb-6">

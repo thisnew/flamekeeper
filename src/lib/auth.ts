@@ -1,7 +1,15 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+
+/** CredentialsSignin whose `code` is surfaced to the client (signIn result.code). */
+class LoginError extends CredentialsSignin {
+  constructor(code: string) {
+    super();
+    this.code = code;
+  }
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -12,32 +20,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "密码", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("请输入邮箱和密码");
+        const email = String(credentials?.email ?? "").trim().toLowerCase();
+        const password = String(credentials?.password ?? "");
+
+        if (!email || !password) {
+          throw new LoginError("missing_fields");
         }
 
-        const email = credentials.email as string;
-        const password = credentials.password as string;
-
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
+        const user = await prisma.user.findUnique({ where: { email } });
 
         if (!user) {
-          throw new Error("账号不存在");
+          throw new LoginError("user_not_found");
         }
 
         if (!user.passwordHash) {
-          throw new Error("此账号未设置密码，请使用其他方式登录");
+          throw new LoginError("no_password");
         }
 
         const isValid = await compare(password, user.passwordHash);
         if (!isValid) {
-          throw new Error("密码错误");
+          throw new LoginError("wrong_password");
         }
 
         if (user.status === "PENDING_EMAIL") {
-          throw new Error("请先验证邮箱后再登录");
+          throw new LoginError("email_unverified");
+        }
+
+        if (user.status === "REJECTED") {
+          throw new LoginError("account_rejected");
         }
 
         return {

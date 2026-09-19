@@ -35,3 +35,7 @@ tmp/
 temp/
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Member-uploaded attachments (runtime data, not source)
+public/uploads/*
+!public/uploads/.gitkeep

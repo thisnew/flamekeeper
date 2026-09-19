@@ -13,7 +13,7 @@ const navItems = [
   { href: "/about", label: "公会介绍", requiresAuth: false },
   { href: "/roster", label: "成员名册", requiresAuth: true },
   { href: "/analytics", label: "数据分析", requiresAuth: true },
-  { href: "/addons", label: "插件库", requiresAuth: true },
+  { href: "/tools", label: "工具分享", requiresAuth: true },
   { href: "/events", label: "活动日历", requiresAuth: true },
   { href: "/gallery", label: "画廊", requiresAuth: false },
 ];

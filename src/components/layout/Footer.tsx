@@ -53,7 +53,7 @@ export default function Footer({ user }: { user: SessionUser | null }) {
             <div className="flex flex-col gap-1.5">
               {isLoggedIn && (
                 <>
-                  <Link href="/addons" className="text-sm text-text-muted hover:text-wow-gold transition-colors">插件库</Link>
+                  <Link href="/tools" className="text-sm text-text-muted hover:text-wow-gold transition-colors">工具分享</Link>
                   <Link href="/analytics" className="text-sm text-text-muted hover:text-wow-gold transition-colors">数据分析</Link>
                   <Link href="/events" className="text-sm text-text-muted hover:text-wow-gold transition-colors">活动日历</Link>
                 </>

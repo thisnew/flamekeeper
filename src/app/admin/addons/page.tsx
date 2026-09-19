@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import AddonsClient from "@/components/admin/AddonsClient";
 
-export const metadata: Metadata = { title: "插件管理 - 管理后台" };
+export const metadata: Metadata = { title: "插件分享管理 - 管理后台" };
 
 export default async function AdminAddonsPage() {
   const session = await auth();
@@ -22,7 +22,7 @@ export default async function AdminAddonsPage() {
       <Link href="/admin" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-wow-gold mb-6">
         <ArrowLeft className="w-4 h-4" /> 返回后台
       </Link>
-      <h1 className="font-display text-2xl font-bold text-wow-gold text-glow mb-8">插件库管理</h1>
+      <h1 className="font-display text-2xl font-bold text-wow-gold text-glow mb-8">插件分享管理</h1>
 
       <AddonsClient initial={addons as any} />
     </div>

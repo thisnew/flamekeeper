@@ -37,7 +37,7 @@ export default async function HomePage() {
   const features = [
     { icon: Swords, title: "团队副本", desc: "固定团本活动，稳定Farm，开荒冲进度", publicCard: true },
     { icon: Users, title: "成员名册", desc: "查看公会成员职业、专精与进度", publicCard: false },
-    { icon: Star, title: "插件库", desc: "精选插件推荐、WA字符串与配置教程", publicCard: false },
+    { icon: Star, title: "工具分享", desc: "精选插件推荐、WA字符串与成员分享", publicCard: false },
     { icon: Shield, title: "数据分析", desc: "职业分布、装等分布、出勤趋势", publicCard: false },
   ].filter((f) => f.publicCard || isLoggedIn);
 
@@ -199,7 +199,7 @@ export default async function HomePage() {
               >
                 <Flame className="w-8 h-8 text-wow-orange mb-4" />
                 <h3 className="font-bold text-wow-gold mb-2">注册解锁更多</h3>
-                <p className="text-sm text-text-muted">成员名册 · 插件库 · 数据分析 · 活动日历</p>
+                <p className="text-sm text-text-muted">成员名册 · 工具分享 · 数据分析 · 活动日历</p>
               </Link>
             )}
           </div>
