@@ -214,13 +214,19 @@ model Event {
 }
 
 model EventSignup {
-  id        String   @id @default(cuid())
-  eventId   String
-  userId    String
-  status    String   @default("CONFIRMED") // CONFIRMED | BENCH | CANCELLED
-  createdAt DateTime @default(now())
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  eventId    String
+  userId     String
+  status     String    @default("CONFIRMED") // CONFIRMED | BENCH | CANCELLED
+  /// 出勤（PLAN.md：event_signups 含「报名与出勤」）
+  /// null = 尚未标记 | ATTENDED 已出席 | ABSENT 缺席 | LEAVE 已请假
+  attendance String?
+  markedAt   DateTime?
+  /// 报名备注（想玩的专精 / 替补说明等）
+  note       String?
+  createdAt  DateTime  @default(now())
+  event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
 }

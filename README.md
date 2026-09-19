@@ -26,7 +26,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 成员名册 | 成员列表（按职业着色）+ 引荐结构树形图 |
 | 数据分析 | 职业分布、装等分布、团本进度可视化 |
 | 工具分享 | 插件库（含 WeakAuras 字符串一键复制）+ 成员发布的攻略分享（可传附件） |
-| 活动日历 | 团本、大秘境、PVP 活动展示（报名写入待实现，见路线图 P2） |
+| 活动日历 | 团本、大秘境、PVP 活动的报名、替补队列、出勤标记与名单导出（CSV） |
 | 媒体画廊 | 击杀截图、活动合照、视频集锦 |
 | 账号系统 | 邮箱注册 + 邮箱验证、密码登录、找回密码（邮件一次性链接）、入会审批 |
 | 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
@@ -99,6 +99,7 @@ flamekeeper/
 │   ├── app/
 │   │   ├── api/                 # API 路由（auth / posts / events / upload / health ...）
 │   │   │                        #   auth 下含 forgot-password、reset-password
+│   │   │                        #   events 下含 signup（报名/替补/出勤）、export（CSV）
 │   │   ├── admin/               # 管理后台（posts, applications, roster, addons,
 │   │   │                        #   events, gallery, settings, mail）
 │   │   ├── auth/                # login, register, verify-email,
@@ -119,6 +120,7 @@ flamekeeper/
 │   │   ├── admin/               # 后台各模块的客户端组件
 │   │   ├── analytics/           # 图表（"use client"，隔离 recharts）
 │   │   ├── auth/                # 重置密码表单等
+│   │   ├── events/              # 活动卡片（报名 / 替补 / 出勤 / 导出）
 │   │   ├── guild/  home/  news/  tools/  ui/
 │   │   ├── layout/              # Header、Footer、UserMenu、SceneBackground
 │   │   └── providers.tsx        # SessionProvider + Toaster
@@ -129,6 +131,8 @@ flamekeeper/
 │   │   ├── page-guard.ts        # requireMember / requireOfficer / requireAdmin
 │   │   ├── mailer.ts            # SMTP 发信（含 smtp_pass 解密）+ 邮件模板
 │   │   ├── password-reset.ts    # 重置令牌的生成/摘要/校验/限流
+│   │   ├── event-signup.ts      # 报名/替补/出勤 的状态机与补位逻辑
+│   │   ├── datetime.ts          # 统一时间格式化（显式时区，避免 hydration mismatch）
 │   │   ├── secrets.ts           # 加解密的类型化再导出（实现见 prisma/secrets.mjs）
 │   │   ├── app-url.ts           # 站点对外地址（拼邮件绝对链接）
 │   │   ├── auth-utils.ts        # 客户端角色判断（useIsAdmin 等）
@@ -643,6 +647,29 @@ npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
 需要「改密即踢下线」的话，得给 `User` 加一个 `passwordChangedAt`（或
 `sessionVersion`）字段，并在 NextAuth 的 `jwt` 回调里比对签发时间 —— 目前未实现。
 
+### 页面上的活动时间不对（差 8 小时）
+
+**根因**：容器默认时区是 **UTC**，而服务端渲染时如果用 `getHours()` /
+`toLocaleDateString()` 这类依赖本地时区的 API，就会按 UTC 显示 ——
+中国用户看到的活动时间会**早 8 小时**。
+
+**本项目怎么处理**：活动日历走 `src/lib/datetime.ts`，用 `Intl` +
+**显式时区**格式化，并在**服务端**算好后把字符串传给客户端组件
+（客户端再格式化会因两边时区不同触发 hydration mismatch）。
+
+**时区配置**：`NEXT_PUBLIC_TIMEZONE` → `TZ` → 默认 `Asia/Shanghai`。
+要换成别的时区，在 `.env` 里设置：
+
+```env
+NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
+```
+
+> ⚠️ 已知遗留：应用里**其它页面**（新闻、名册等）仍在用 `lib/utils.ts` 的
+> `formatDate()`，它依赖容器时区。如果发现那些页面的日期偏移，把容器 `TZ`
+> 设为 `Asia/Shanghai` 即可（在 `docker-compose.yml` 的 `environment` 里加
+> 一行 `- TZ=Asia/Shanghai`）。逐个页面替换成 `lib/datetime.ts` 的彻底改造
+> 尚未进行。
+
 ---
 
 ## 📋 脚本命令
@@ -707,12 +734,13 @@ npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
   `/auth/reset-password` 设置新密码。令牌只以 SHA-256 摘要落库、1 小时过期、
   用后即焚；改密后同用户其余令牌一并作废；同账号 15 分钟内限 3 次；
   接口对「邮箱是否存在」返回完全一致的响应（防账号枚举）。
+- [x] **活动报名 / 替补 / 出勤 / 导出**：成员在 `/events` 一键报名；名额满自动进入
+  替补队列，有人退出时**按报名先后自动补位**；官员可调整报名状态与标记出勤
+  （出席/缺席/请假），并可导出带 UTF-8 BOM 的 CSV 名单（Excel 中文不乱码）。
+  名额判定用 `SELECT … FOR UPDATE` 锁活动行，并发报名不会超员。
 
 ### 🚧 待办（P2 — 进阶）
 
-- [ ] 活动报名（带替补机制）
-  —— 现状：`EventSignup` 模型与字段已就绪，活动列表只读展示了报名者；
-  **没有报名/退出的写入接口**。
 - [ ] 附件可选 S3 / 对象存储适配器（当前为本地磁盘 `public/uploads`）
 - [ ] WCL / Raider.IO 数据同步
 - [ ] KOOK 机器人通知
@@ -778,7 +806,9 @@ npm run db:sync    # 从 POSTGRES_PASSWORD 重新派生并写回 DATABASE_URL
 
 **活动与分析**
 
-- `Event` + `EventSignup` —— 活动与报名（报名写入未实现，见路线图 P2）
+- `Event` + `EventSignup` —— 活动与报名。`EventSignup.status` 为
+  `CONFIRMED | BENCH | CANCELLED`，另有独立的 `attendance`
+  （`null` 未标记 / `ATTENDED` / `ABSENT` / `LEAVE`）与 `note` 备注。
 - `RaidProgress` —— 团本进度
 - `AnalyticsSnapshot` —— 分析快照
 
