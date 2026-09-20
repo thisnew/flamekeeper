@@ -2,9 +2,10 @@ import { Metadata } from "next";
 import { CalendarDays } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/page-guard";
-import { isOfficerOrAboveRole } from "@/lib/roles";
+import { isAdminRole, isOfficerOrAboveRole } from "@/lib/roles";
 import { formatDateTime } from "@/lib/datetime";
 import EventSignupPanel, { type EventView } from "@/components/events/EventSignupPanel";
+import CalendarSubscribe from "@/components/events/CalendarSubscribe";
 
 export const metadata: Metadata = {
   title: "活动日历",
@@ -25,6 +26,7 @@ function sortEvents<T extends { endTime: Date; startTime: Date }>(events: T[]): 
 export default async function EventsPage() {
   const user = await requireMember();
   const isOfficer = isOfficerOrAboveRole(user.role);
+  const isAdmin = isAdminRole(user.role);
 
   let events: EventView[] = [];
   try {
@@ -79,6 +81,12 @@ export default async function EventsPage() {
 
       <section className="py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          {isOfficer && (
+            <div className="mb-4">
+              <CalendarSubscribe isAdmin={isAdmin} />
+            </div>
+          )}
+
           {events.length === 0 ? (
             <div className="text-center py-20 text-text-muted border border-border-default rounded bg-bg-card">
               <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-30" />

@@ -26,7 +26,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 成员名册 | 成员列表（按职业着色）+ 引荐结构树形图 |
 | 数据分析 | 职业分布、装等分布、团本进度可视化 |
 | 工具分享 | 插件库（含 WeakAuras 字符串一键复制）+ 成员发布的攻略分享（可传附件） |
-| 活动日历 | 团本、大秘境、PVP 活动的报名、替补队列、出勤标记与名单导出（CSV） |
+| 活动日历 | 团本、大秘境、PVP 活动的报名、替补队列、出勤标记、名单导出（CSV）与 `.ics` 日历订阅 |
 | 媒体画廊 | 击杀截图、活动合照、视频集锦 |
 | 账号系统 | 邮箱注册 + 邮箱验证、密码登录、找回密码（邮件一次性链接）、入会审批 |
 | 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
@@ -99,7 +99,8 @@ flamekeeper/
 │   ├── app/
 │   │   ├── api/                 # API 路由（auth / posts / events / upload / health ...）
 │   │   │                        #   auth 下含 forgot-password、reset-password
-│   │   │                        #   events 下含 signup（报名/替补/出勤）、export（CSV）
+│   │   │                        #   events 下含 signup（报名/替补/出勤）、export（CSV）、
+│   │   │                        #     ics（日历订阅）、ics-key（查看/轮换订阅密钥）
 │   │   ├── admin/               # 管理后台（posts, applications, roster, addons,
 │   │   │                        #   events, gallery, settings, mail）
 │   │   ├── auth/                # login, register, verify-email,
@@ -120,7 +121,7 @@ flamekeeper/
 │   │   ├── admin/               # 后台各模块的客户端组件
 │   │   ├── analytics/           # 图表（"use client"，隔离 recharts）
 │   │   ├── auth/                # 重置密码表单等
-│   │   ├── events/              # 活动卡片（报名 / 替补 / 出勤 / 导出）
+│   │   ├── events/              # 活动卡片（报名 / 替补 / 出勤 / 导出）+ 日历订阅面板
 │   │   ├── guild/  home/  news/  tools/  ui/
 │   │   ├── layout/              # Header、Footer、UserMenu、SceneBackground
 │   │   └── providers.tsx        # SessionProvider + Toaster
@@ -132,6 +133,8 @@ flamekeeper/
 │   │   ├── mailer.ts            # SMTP 发信（含 smtp_pass 解密）+ 邮件模板
 │   │   ├── password-reset.ts    # 重置令牌的生成/摘要/校验/限流
 │   │   ├── event-signup.ts      # 报名/替补/出勤 的状态机与补位逻辑
+│   │   ├── ics.ts               # iCalendar 生成（按字节折行 + RFC 5545 转义）
+│   │   ├── calendar-feed.ts     # 日历订阅密钥的生成/校验/轮换
 │   │   ├── datetime.ts          # 统一时间格式化（显式时区，避免 hydration mismatch）
 │   │   ├── secrets.ts           # 加解密的类型化再导出（实现见 prisma/secrets.mjs）
 │   │   ├── app-url.ts           # 站点对外地址（拼邮件绝对链接）
@@ -670,6 +673,24 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 > 一行 `- TZ=Asia/Shanghai`）。逐个页面替换成 `lib/datetime.ts` 的彻底改造
 > 尚未进行。
 
+### 日历订阅拉不到 / 报 404
+
+`/api/events/ics` 需要公会级密钥，**验证失败一律返回 404**（而不是
+401/403）—— 不告诉扫描者「端点存在、只是密钥不对」，减少被试探的动机。
+所以看到 404 通常是密钥问题，不是端点不存在。
+
+排查：
+
+1. **地址是否完整** —— 必须带 `?key=<64 位十六进制>`。在
+   `/events` 页面（官员）展开「订阅日历到手机」即可复制完整地址。
+2. **密钥是否被轮换过** —— 管理员点过「轮换密钥」会让所有旧链接立即失效，
+   需要在日历 App 里重新订阅。
+3. **不要在浏览器里直接判断** —— 这个端点返回 `text/calendar`，
+   浏览器可能直接下载文件。请把地址粘到日历 App 的「通过网址添加订阅」。
+
+> 该地址含公会级密钥（`Setting` 表的 `calendar_feed_key`）。它**刻意不在**
+> `/api/settings` 的公开白名单里，否则等于把密钥公开。请勿把订阅地址发到公开渠道。
+
 ---
 
 ## 📋 脚本命令
@@ -734,10 +755,11 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
   `/auth/reset-password` 设置新密码。令牌只以 SHA-256 摘要落库、1 小时过期、
   用后即焚；改密后同用户其余令牌一并作废；同账号 15 分钟内限 3 次；
   接口对「邮箱是否存在」返回完全一致的响应（防账号枚举）。
-- [x] **活动报名 / 替补 / 出勤 / 导出**：成员在 `/events` 一键报名；名额满自动进入
-  替补队列，有人退出时**按报名先后自动补位**；官员可调整报名状态与标记出勤
-  （出席/缺席/请假），并可导出带 UTF-8 BOM 的 CSV 名单（Excel 中文不乱码）。
+- [x] **活动报名 / 替补 / 出勤 / 导出 / .ics 订阅**：成员在 `/events` 一键报名；
+  名额满自动进入替补队列，有人退出时**按报名先后自动补位**；官员可调整报名状态
+  与标记出勤（出席/缺席/请假），并可导出带 UTF-8 BOM 的 CSV 名单（Excel 中文不乱码）。
   名额判定用 `SELECT … FOR UPDATE` 锁活动行，并发报名不会超员。
+  另有 `.ics` 订阅：`/api/events/ics?key=…`，密钥为公会级、官员可见、管理员可轮换。
 
 ### 🚧 待办（P2 — 进阶）
 
