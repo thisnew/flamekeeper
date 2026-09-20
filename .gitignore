@@ -29,6 +29,9 @@ Thumbs.db
 # Tooling metadata (user-specific, not for source control)
 .reasonix/
 .claude/
+# 桌面 AI 工具的附件目录（无点前缀的那个）。曾经出现过剪贴板附件被写进来，
+# 因为不在忽略列表里，一次 `git add -A` 就会误入库。
+reasonix/
 
 # Logs
 *.log

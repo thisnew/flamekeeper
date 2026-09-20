@@ -5,6 +5,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import SceneBackground from "@/components/layout/SceneBackground";
 import { auth } from "@/lib/auth";
+import { appUrlObject } from "@/lib/app-url";
 
 export const metadata: Metadata = {
   title: {
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
   },
   description: "Eternal Flame 公会官方网站。薪火不灭，荣耀永燃。魔兽世界公会招募、团本进度、数据分析、插件攻略，尽在守焰者。",
   keywords: ["魔兽世界", "公会", "Eternal Flame", "守焰者", "WOW", "招募", "插件"],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  metadataBase: appUrlObject(),
   openGraph: {
     type: "website",
     siteName: "Eternal Flame | 守焰者",

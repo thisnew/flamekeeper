@@ -10,10 +10,16 @@ RUN npm ci --ignore-scripts
 # Copy source
 COPY . .
 
-# NEXT_PUBLIC_APP_URL is baked into the build (used by metadataBase,
-# OpenGraph absolute URLs). Override with --build-arg NEXT_PUBLIC_APP_URL=...
-# Defaults to the public deployment URL baked into the image.
-ARG NEXT_PUBLIC_APP_URL=https://www.h83c4578f.nyat.app
+# NEXT_PUBLIC_APP_URL is INLINED AT BUILD TIME (Next.js replaces
+# `process.env.NEXT_PUBLIC_*` with a literal, in server chunks too -- verified
+# by grepping the built output). It feeds metadataBase and OpenGraph absolute
+# URLs. Changing it at deploy time has NO effect; rebuild instead.
+#
+# Runtime origin (NextAuth redirects, email links, calendar feed) comes from
+# AUTH_URL, which IS read at runtime -- see docker-compose.yml.
+#
+# The port matters: this project is served at https://<domain>:22247
+ARG NEXT_PUBLIC_APP_URL=https://www.h83c4578f.nyat.app:22247
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 # Generate Prisma client, emit the PostgreSQL DDL, then build

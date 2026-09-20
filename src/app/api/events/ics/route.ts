@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { appUrl } from "@/lib/app-url";
+import { appUrlObject } from "@/lib/app-url";
 import { buildCalendar, type IcsEvent } from "@/lib/ics";
 import { getCalendarFeedKey, safeEqual } from "@/lib/calendar-feed";
 
@@ -50,18 +50,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const host = (() => {
-      try {
-        return new URL(appUrl()).host;
-      } catch {
-        return "flamekeeper";
-      }
-    })();
+    // UID 用 hostname（**不含端口**）：UID 的约定是 `<唯一id>@<域名>`，
+    // 而 `host` 会带上 :22247 这类端口号，冒号让域名部分不再合法。
+    const uidHost = appUrlObject().hostname;
 
     const ics = buildCalendar({
       events,
       calendarName: "Eternal Flame 守焰者 活动日历",
-      uidHost: host,
+      uidHost,
     });
 
     return new NextResponse(ics, {

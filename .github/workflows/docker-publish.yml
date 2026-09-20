@@ -16,10 +16,13 @@ env:
   REGISTRY: crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com/thisnew
   REGISTRY_HOST: crpi-bisd6rcwol3ac2v6.cn-hangzhou.personal.cr.aliyuncs.com
   IMAGE: flamekeeper
-  # Public origin baked into the image at build time (used by Next.js
-  # for metadataBase + OpenGraph absolute URLs). Change if the deployment
-  # domain ever moves.
-  PUBLIC_URL: https://www.h83c4578f.nyat.app
+  # Baked into the image at build time as NEXT_PUBLIC_APP_URL (metadataBase +
+  # OpenGraph absolute URLs). Next.js INLINES NEXT_PUBLIC_* at build time, so
+  # this cannot be changed at deploy time -- changing it means rebuilding.
+  #
+  # The port is part of the origin: this project is served at :22247.
+  # Keep this in sync with docker-compose.yml PUBLIC_ORIGIN and .env.example.
+  PUBLIC_URL: https://www.h83c4578f.nyat.app:22247
 
 on:
   push:

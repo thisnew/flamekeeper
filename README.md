@@ -303,16 +303,32 @@ Docker 自动完成以下操作：
 
 #### 自定义环境变量
 
-发布域名：**`https://www.h83c4578f.nyat.app`**（已写入 `docker-compose.yml` 与 `.env.example` 的默认值）。
-若域名变更或运行在局域网，**仅需覆盖 `.env` 的对应变量**，无需修改源码。
+最终访问地址：**`https://www.h83c4578f.nyat.app:22247`** —— **注意带端口 `:22247`**。
+已写入 `docker-compose.yml`、`.env.example`、`Dockerfile` 与 CI 的默认值。
+
+> ⚠️ **换域名 / 换端口时，必须区分两种变量**：
+>
+> | 变量 | 何时生效 | 作用 |
+> | --- | --- | --- |
+> | **`AUTH_URL`** | ✅ **运行时** | NextAuth 登录跳转、邮件里的验证/重置链接、日历订阅地址 |
+> | `NEXT_PUBLIC_APP_URL` | ❌ **只能构建期** | `metadataBase`、OpenGraph 绝对 URL |
+>
+> `NEXT_PUBLIC_*` 会被 Next.js 在**构建期**替换成字面量（服务端产物也一样 ——
+> 实测 243 个 server chunk 里搜不到这个变量名）。所以**部署时改它没有任何效果，
+> 必须重新构建镜像**。真正能在运行时改的是 `AUTH_URL`。
 
 在 `docker-compose.yml` 同目录创建 `.env`：
 
 ```env
-# 鉴权 + 域名（必须与反向代理 / NAT 映射一致）
+# 鉴权 + 对外地址（必须与反向代理 / NAT 映射一致，含端口）
 AUTH_SECRET=<随机生成的 32 位字符串>
-AUTH_URL=https://www.h83c4578f.nyat.app
-NEXT_PUBLIC_APP_URL=https://www.h83c4578f.nyat.app
+AUTH_URL=https://www.h83c4578f.nyat.app:22247
+NEXT_PUBLIC_APP_URL=https://www.h83c4578f.nyat.app:22247
+
+# ⚠ 容器用的是 compose 里的 PUBLIC_ORIGIN（默认即上面的地址）。
+#   刻意不复用 AUTH_URL：compose 会自动读取本文件做 ${} 插值，
+#   若 compose 写 ${AUTH_URL:-…}，本地开发的 localhost:3000 就会被注进容器。
+# 要让容器指向别处：PUBLIC_ORIGIN=https://other.example.com
 
 # PostgreSQL（容器内）
 POSTGRES_USER=flamekeeper
@@ -690,6 +706,38 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 
 > 该地址含公会级密钥（`Setting` 表的 `calendar_feed_key`）。它**刻意不在**
 > `/api/settings` 的公开白名单里，否则等于把密钥公开。请勿把订阅地址发到公开渠道。
+
+### 换了域名或端口后「改了但没生效」
+
+要分清两类变量，改错了就会出现「明明改了却没反应」：
+
+| 变量 | 生效时机 | 怎么改 |
+| --- | --- | --- |
+| **`AUTH_URL`** | ✅ **运行时** | 改 compose 的 `PUBLIC_ORIGIN`（或 `.env`）后**重启容器** |
+| `NEXT_PUBLIC_APP_URL` | ❌ **构建期**（被内联成字面量） | 必须**重新构建镜像**，改运行时不生效 |
+
+排查顺序：
+
+1. **登录跳转 / 邮件链接指向错域名、或丢了端口** → 查 `AUTH_URL`：
+   ```bash
+   docker exec flamekeeper-web printenv AUTH_URL
+   # 期望：https://www.h83c4578f.nyat.app:22247
+   ```
+   若输出是 `http://localhost:3000`，说明 compose 从本地 `.env` 插值把它带进容器了
+   —— 本项目已改用 `PUBLIC_ORIGIN` 规避（见 `docker-compose.yml` 注释）。
+2. **社交分享卡片 / OpenGraph 的绝对 URL 不对** → 那是 `NEXT_PUBLIC_APP_URL`，
+   构建期烘焙，**只能重建镜像**（CI 的 `PUBLIC_URL` / Dockerfile 的 ARG）。
+3. **端口必须写全** —— 本项目对外地址是 `https://<域名>:22247`，漏了 `:22247`
+   会让回调地址与浏览器地址不同源，登录直接失败。
+4. **反向代理要透传端口** —— Host 头需保留 `:22247`。否则 NextAuth 靠
+   `trustHost` 从 Host 头推断 origin 时会丢掉端口。最稳的做法是**显式设置
+   `AUTH_URL`**，让 NextAuth 不依赖 Host 头。
+
+> **Cookie 不受端口影响**：Cookie 是按域名隔离的，不是按端口。
+> 所以换端口不会导致「登录状态丢失」；`Secure` 标记只取决于协议是不是 https。
+
+> 本项目刻意让 `AUTH_URL` **优先于** `NEXT_PUBLIC_APP_URL`（见 `src/lib/app-url.ts`）
+> —— 否则那个构建期内联的值会永远胜出，「运行时改地址」就彻底失效了。
 
 ---
 
