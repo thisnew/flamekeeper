@@ -20,7 +20,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 
 | 功能模块 | 说明 |
 | --- | --- |
-| 信息发布 | 公告、新闻、战报、活动、招募、维护通知 |
+| 信息发布 | 公告、新闻、战报、活动、招募、维护通知 + 成员评论（可配置先审后发） |
 | 入会指南 | 完整入会流程说明、招募要求、常见问题 |
 | 公会介绍 | 公会故事、管理层、规则、荣誉墙 |
 | 成员名册 | 成员列表（按职业着色）+ 引荐结构树形图 |
@@ -101,8 +101,9 @@ flamekeeper/
 │   │   │                        #   auth 下含 forgot-password、reset-password
 │   │   │                        #   events 下含 signup（报名/替补/出勤）、export（CSV）、
 │   │   │                        #     ics（日历订阅）、ics-key（查看/轮换订阅密钥）
+│   │   │                        #   comments（发表 / 审核 / 删除）
 │   │   ├── admin/               # 管理后台（posts, applications, roster, addons,
-│   │   │                        #   events, gallery, settings, mail）
+│   │   │                        #   events, gallery, comments, settings, mail）
 │   │   ├── auth/                # login, register, verify-email,
 │   │   │                        #   forgot-password, reset-password
 │   │   ├── apply/               # 入会申请表单
@@ -121,6 +122,7 @@ flamekeeper/
 │   │   ├── admin/               # 后台各模块的客户端组件
 │   │   ├── analytics/           # 图表（"use client"，隔离 recharts）
 │   │   ├── auth/                # 重置密码表单等
+│   │   ├── comments/            # 文章评论区
 │   │   ├── events/              # 活动卡片（报名 / 替补 / 出勤 / 导出）+ 日历订阅面板
 │   │   ├── guild/  home/  news/  tools/  ui/
 │   │   ├── layout/              # Header、Footer、UserMenu、SceneBackground
@@ -137,6 +139,7 @@ flamekeeper/
 │   │   ├── calendar-feed.ts     # 日历订阅密钥的生成/校验/轮换
 │   │   ├── datetime.ts          # 统一时间格式化（显式时区，避免 hydration mismatch）
 │   │   ├── secrets.ts           # 加解密的类型化再导出（实现见 prisma/secrets.mjs）
+│   │   ├── comments.ts          # 评论的审核开关与内容规范化
 │   │   ├── app-url.ts           # 站点对外地址（拼邮件绝对链接）
 │   │   ├── auth-utils.ts        # 客户端角色判断（useIsAdmin 等）
 │   │   ├── validations.ts       # Zod schema
@@ -808,6 +811,10 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
   与标记出勤（出席/缺席/请假），并可导出带 UTF-8 BOM 的 CSV 名单（Excel 中文不乱码）。
   名额判定用 `SELECT … FOR UPDATE` 锁活动行，并发报名不会超员。
   另有 `.ics` 订阅：`/api/events/ics?key=…`，密钥为公会级、官员可见、管理员可轮换。
+- [x] **文章评论**：成员可在新闻/公告下评论，**默认先审后发**（`comment_moderation`
+  开关，官员在 `后台 → 评论审核` 处理，入口带待审数角标）。官员与管理员自己发的
+  评论直接通过；未审评论对游客与其他成员不可见，但作者能看到自己的待审状态；
+  可删除自己的评论，官员可删任意一条（留审计日志）。
 
 ### 🚧 待办（P2 — 进阶）
 
@@ -815,7 +822,8 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 - [ ] WCL / Raider.IO 数据同步
 - [ ] KOOK 机器人通知
 - [ ] 多语言（i18n）
-- [ ] 评论/反馈
+- [ ] 意见反馈（独立表单 + 处理流转）
+  —— 现状：**文章评论已完成**（见下方 P1），此处剩「反馈」部分未做。
 - [ ] 直播聚合
 
 ---
@@ -850,7 +858,7 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 
 ## 📝 数据模型一览
 
-共 **18 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
+共 **19 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
 
 **账号与鉴权（NextAuth 所需）**
 
@@ -870,6 +878,9 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 **内容**
 
 - `Post` —— 信息发布（分类 / 置顶 / 标签 / 附件）
+- `Comment` —— 文章评论。`status` 为 `PENDING | APPROVED | REJECTED`，
+  默认**先审后发**（`comment_moderation` 开关）；官员与管理员自己发的
+  始终直接通过。可见性：已通过的公开可见，作者能额外看到自己待审/被拒的。
 - `Page` —— 静态页面（公会介绍等）
 - `Addon` —— 插件与成员分享（分类 / WA 字符串 / 附件）
 - `Media` —— 图片与视频

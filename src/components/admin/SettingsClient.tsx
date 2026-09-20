@@ -17,6 +17,7 @@ interface Settings {
   wechat_qr_image: string;
   recruitment_status: string;
   officer_emails: string;
+  comment_moderation: string;
   mail_enabled: string;
   smtp_host: string;
   smtp_port: string;
@@ -118,6 +119,25 @@ export default function SettingsClient({ initial }: { initial: Settings }) {
             <option value="暂满">暂满</option>
             <option value="暂停招募">暂停招募</option>
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-text-secondary mb-1.5">文章评论审核</label>
+          <select
+            value={form.comment_moderation}
+            onChange={(e) => set("comment_moderation", e.target.value)}
+            className="w-full px-3 py-2 bg-bg-secondary border border-border-default rounded text-text-primary focus:border-wow-gold focus:outline-none"
+          >
+            <option value="true">先审后发（推荐）</option>
+            <option value="false">发布即公开</option>
+          </select>
+          <p className="text-xs text-text-muted mt-1">
+            开启后，成员的评论需官员在{" "}
+            <Link href="/admin/comments" className="text-wow-gold hover:underline">
+              评论审核
+            </Link>{" "}
+            通过才公开显示。官员与管理员自己发的评论始终直接通过。
+          </p>
         </div>
       </div>
 

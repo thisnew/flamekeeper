@@ -31,6 +31,8 @@ export default async function AdminSettingsPage() {
     wechat_qr_image: "",
     recruitment_status: "招募中",
     officer_emails: "",
+    // 评论先审后发（"false" 关闭）
+    comment_moderation: "true",
     // mail / SMTP
     mail_enabled: "true",
     smtp_host: "smtp.163.com",

@@ -1,9 +1,13 @@
-﻿import { Metadata } from "next";
+import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { isMemberOrAboveRole, isOfficerOrAboveRole } from "@/lib/roles";
 import { formatDate } from "@/lib/utils";
+import { formatDateTime } from "@/lib/datetime";
 import Link from "next/link";
 import { ArrowLeft, Eye } from "lucide-react";
+import CommentSection, { type CommentView } from "@/components/comments/CommentSection";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -17,6 +21,30 @@ async function getPost(slug: string) {
     });
   } catch {
     return null;
+  }
+}
+
+/**
+ * 取该文章的评论。
+ *
+ * 可见性：已通过的评论对所有人可见；**当前登录用户自己**的待审/未通过评论
+ * 也一并返回（否则作者会以为评论发丢了）。
+ *
+ * 官员在文章页**不**额外看到全部待审评论 —— 那是后台的工作流，
+ * 在公开页面泄露未审内容不合适。
+ */
+async function getComments(postId: string, viewerId: string | null) {
+  try {
+    return await prisma.comment.findMany({
+      where: {
+        postId,
+        OR: [{ status: "APPROVED" }, ...(viewerId ? [{ userId: viewerId }] : [])],
+      },
+      orderBy: { createdAt: "asc" },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+  } catch {
+    return [];
   }
 }
 
@@ -35,6 +63,23 @@ export default async function NewsDetailPage({ params }: Props) {
   const post = await getPost(slug);
 
   if (!post || !post.isPublished) notFound();
+
+  const session = await auth();
+  const viewer = session?.user as any;
+  const viewerId: string | null = viewer?.id ?? null;
+
+  const comments = await getComments(post.id, viewerId);
+
+  const commentViews: CommentView[] = comments.map((c) => ({
+    id: c.id,
+    userId: c.userId,
+    content: c.content,
+    status: c.status,
+    // 服务端按 DISPLAY_TIMEZONE 格式化，客户端只负责显示
+    createdAtLabel: formatDateTime(c.createdAt),
+    authorName: c.user.name || c.user.email,
+    isOwn: c.userId === viewerId,
+  }));
 
   return (
     <div className="page-enter max-w-4xl mx-auto px-4 sm:px-6 py-12">
@@ -98,6 +143,14 @@ export default async function NewsDetailPage({ params }: Props) {
           </div>
         )}
       </article>
+
+      <CommentSection
+        postId={post.id}
+        comments={commentViews}
+        canComment={!!viewerId && isMemberOrAboveRole(viewer?.role)}
+        isLoggedIn={!!viewerId}
+        isOfficer={!!viewerId && isOfficerOrAboveRole(viewer?.role)}
+      />
     </div>
   );
 }

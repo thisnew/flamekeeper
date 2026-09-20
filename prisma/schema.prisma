@@ -30,6 +30,7 @@ model User {
   eventSignups   EventSignup[]
   auditLogs      AuditLog[]
   passwordResets PasswordResetToken[]
+  comments       Comment[]
 }
 
 model Account {
@@ -134,6 +135,25 @@ model Post {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   author         User      @relation(fields: [authorId], references: [id])
+  comments       Comment[]
+}
+
+/// 文章评论。
+/// status 默认 PENDING —— 需要官员审核后才对所有人可见（可在系统设置里
+/// 用 `comment_moderation` 关掉；官员/管理员自己发的评论始终直接通过）。
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  status    String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, status])
+  @@index([status])
 }
 
 model Page {
