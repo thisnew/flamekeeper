@@ -1208,6 +1208,14 @@ GET https://webapi.blizzard.cn/wow-armory-server/api/server_status?server_type=w
   注意：目前**没有**统一的响应包装函数，各路由手写，形状靠约定而非类型强制。
 - **需要落库的密钥必须加密**：走 `lib/secrets.ts`（实现在 `prisma/secrets.mjs`），
   不要明文写进 `Setting` 表。
+- **登录门槛**（`lib/auth.ts` 的 `authorize`）：**邮箱未验证一律不能登录**，
+  与角色无关（顺序在 `REJECTED` 检查之前，不看 `role`）。
+  注册 → `emailVerified: null` + `PENDING_EMAIL`；点邮件链接 →
+  写入 `emailVerified` 并把状态推进为 `PENDING_APPROVAL`。
+  ⚠ **已验证但待审批是可以登录的** —— 只是被 `requireMember()` 挡在 `/pending`。
+  登录页对 `email_unverified` 会给一条「重新发送验证邮件」的出路
+  （`/auth/verify-email` 无需 token 也能打开，那里就有重发表单）。
+
 - **会话里的用户信息必须每次从库里刷新**（`lib/auth.ts` 的 `jwtCallback`）。
   NextAuth 只在**登录那一刻**往 token 里写 `name`/`role`/`status`，之后永不更新 ——
   ⚠ 忘记刷新就会出现「改了昵称页头还是旧名字、审批通过后状态卡在旧值」这类问题，

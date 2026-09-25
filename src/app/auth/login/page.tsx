@@ -43,6 +43,8 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  /** 错误码（如 email_unverified）—— 有它才能针对性地给出下一步入口 */
+  const [submitErrorCode, setSubmitErrorCode] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,9 +74,11 @@ function LoginForm() {
       }
 
       if (result.error || result.code) {
+        const code = (result as any).code ?? result.error ?? null;
         const msg =
           resolveMessage(result.error, (result as any).code) || "登录失败，请稍后再试";
         setSubmitError(msg);
+        setSubmitErrorCode(code);
         toast.error(msg);
         return;
       }
@@ -104,6 +108,11 @@ function LoginForm() {
 
   const urlMessage = resolveMessage(urlError, urlCode);
   const errorMessage = submitError || urlMessage;
+  // 邮箱未验证时给一条自助出路（见下方渲染处）
+  const isUnverified =
+    submitErrorCode === "email_unverified" ||
+    urlError === "email_unverified" ||
+    urlCode === "email_unverified";
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
@@ -169,7 +178,20 @@ function LoginForm() {
           {errorMessage && (
             <div className="mt-4 p-3 bg-wow-red/10 border border-wow-red/30 rounded text-sm text-wow-red flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>登录失败：{errorMessage}</span>
+              <span>
+                登录失败：{errorMessage}
+                {/* 邮箱未验证是唯一「能自助解决」的失败原因 —— 不给出路的话
+                    用户只知道被拦了，却没法重发验证邮件（/auth/verify-email
+                    无需 token 也能打开，那里就有重发表单）。 */}
+                {isUnverified && (
+                  <>
+                    {" "}
+                    <Link href="/auth/verify-email" className="underline font-bold hover:text-wow-red/80">
+                      重新发送验证邮件 →
+                    </Link>
+                  </>
+                )}
+              </span>
             </div>
           )}
 
