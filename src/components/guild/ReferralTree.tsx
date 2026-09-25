@@ -17,9 +17,10 @@ export interface TreeNode {
   email?: string | null;
   character?: {
     name: string;
-    class: string;
-    spec: string;
-    role: string;
+    /** ⚠ 可空：WTF 导入拿不到职业/专精，绑定了公会名单才有值 */
+    class?: string | null;
+    spec?: string | null;
+    role?: string | null;
   } | null;
   children: TreeNode[];
 }
@@ -134,7 +135,9 @@ function TreeItem({
   const hasChildren = node.children.length > 0;
   const meta = RANK_META[node.guildRank] ?? RANK_META.MEMBER;
   const RoleIcon = meta.icon;
-  const classColor = node.character ? CLASS_COLOR_HEX[node.character.class] : undefined;
+  const classColor = node.character?.class
+    ? CLASS_COLOR_HEX[node.character.class]
+    : undefined;
   const descendants = hasChildren ? countDescendants(node) : 0;
 
   return (
