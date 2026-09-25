@@ -36,6 +36,7 @@ model User {
   auditLogs      AuditLog[]
   passwordResets PasswordResetToken[]
   comments       Comment[]
+  wtfAccounts    WtfAccount[]
 }
 
 model Account {
@@ -177,20 +178,48 @@ model Character {
   id           String   @id @default(cuid())
   name         String
   server       String
-  faction      String
-  class        String
-  spec         String
-  role         String // Tank | Healer | DPS
+  /// WTF 导入只能拿到「账号/服务器/角色名」，职业专精这些拿不到，
+  /// 因此以下四项改为可空 —— 由成员在个人资料里补全，或缺省显示。
+  faction      String?
+  class        String?
+  spec         String?
+  role         String? // Tank | Healer | DPS
   level        Int      @default(80)
   itemLevel    Int?
   mythicScore  Int?
   raidProgress String?
   status       String   @default("ACTIVE") // ACTIVE | BENCH | CASUAL | LEFT
   isPublic     Boolean  @default(true)
+  /// 来自哪个 WTF 账号（形如 NZY900202），手工添加的角色为 null
+  accountName  String?
+  /// 个人中心里的角色排序（小的在前）
+  sortOrder    Int      @default(0)
   userId       String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, sortOrder])
+}
+
+/// 成员上传过的 WTF 账号目录。每位成员最多 5 个。
+///
+/// 网页无法读取本地路径（浏览器安全沙箱），所以靠 `<input webkitdirectory>`
+/// 让用户主动选目录，再从相对路径解析出 账号/服务器/角色名 三层目录名。
+/// **只保存目录名，不保存任何文件内容。**
+model WtfAccount {
+  id          String   @id @default(cuid())
+  userId      String
+  /// 账号目录名，例如 NZY900202
+  accountName String
+  /// 上次解析到的服务器数量（展示用）
+  realmCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, accountName])
+  @@index([userId])
 }
 
 model RaidProgress {

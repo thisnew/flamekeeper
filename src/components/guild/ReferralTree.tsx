@@ -185,7 +185,9 @@ function TreeItem({
 
             {node.character && (
               <span className="text-xs text-text-muted truncate">
-                {node.character.name} · {node.character.class} · {node.character.spec}
+                {node.character.name}
+                {[node.character.class, node.character.spec].filter(Boolean).length > 0 &&
+                  ` · ${[node.character.class, node.character.spec].filter(Boolean).join(" · ")}`}
               </span>
             )}
 

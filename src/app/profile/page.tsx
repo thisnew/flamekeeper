@@ -4,9 +4,13 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { User, Mail, Shield, Calendar, Clock, ArrowLeft, KeyRound, Loader2, FileCheck } from "lucide-react";
+import { User, Mail, Shield, Calendar, Clock, ArrowLeft, KeyRound, Loader2, FileCheck, Gamepad2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useEffect } from "react";
+import WtfManager, {
+  type ExistingAccount,
+  type ExistingCharacter,
+} from "@/components/profile/WtfManager";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -14,6 +18,8 @@ export default function ProfilePage() {
   const user = session?.user as any;
 
   const [applications, setApplications] = useState<any[]>([]);
+  const [wtfAccounts, setWtfAccounts] = useState<ExistingAccount[]>([]);
+  const [wtfCharacters, setWtfCharacters] = useState<ExistingCharacter[]>([]);
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirm: "" });
   const [pwBusy, setPwBusy] = useState(false);
 
@@ -22,6 +28,13 @@ export default function ProfilePage() {
     fetch("/api/applications")
       .then((r) => r.json())
       .then((d) => setApplications(d.applications || []))
+      .catch(() => {});
+    fetch("/api/profile/wtf")
+      .then((r) => r.json())
+      .then((d) => {
+        setWtfAccounts(d.accounts || []);
+        setWtfCharacters(d.characters || []);
+      })
       .catch(() => {});
   }, [user?.id]);
 
@@ -124,8 +137,9 @@ export default function ProfilePage() {
               <div key={a.id} className="bg-bg-secondary/50 rounded p-3 text-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-text-primary">{a.characterName}</span>
-                    <span className="text-xs text-text-muted ml-2">{a.class} · {a.spec}</span>
+                    <span className="font-bold text-text-primary">
+                      {a.characterName || "入会申请"}
+                    </span>
                   </div>
                   <span className={`text-xs ${
                     a.status === "APPROVED" ? "text-wow-green" :
@@ -142,6 +156,13 @@ export default function ProfilePage() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="bg-bg-card border border-border-default rounded p-6 mb-6">
+        <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
+          <Gamepad2 className="w-4 h-4 text-wow-gold" /> 角色管理（WTF 导入）
+        </h3>
+        <WtfManager accounts={wtfAccounts} characters={wtfCharacters} />
       </div>
 
       <div className="bg-bg-card border border-border-default rounded p-6">

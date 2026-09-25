@@ -166,8 +166,10 @@ export default function RosterClient({ initial }: { initial: Character[] }) {
             ) : list.map((c) => (
               <tr key={c.id} className="border-b border-border-default hover:bg-bg-card/30">
                 <td className="py-2 px-3 font-bold text-text-primary">{c.name}</td>
-                <td className="py-2 px-3 text-text-muted">{c.class} · {c.spec}</td>
-                <td className="py-2 px-3">{ROLES.find((r) => r.value === c.role)?.label}</td>
+                <td className="py-2 px-3 text-text-muted">
+                  {[c.class, c.spec].filter(Boolean).join(" · ") || "未设置"}
+                </td>
+                <td className="py-2 px-3">{ROLES.find((r) => r.value === c.role)?.label || "未设置"}</td>
                 <td className="py-2 px-3 text-wow-gold font-mono">{c.itemLevel || '-'}</td>
                 <td className="py-2 px-3 text-wow-purple font-mono">{c.mythicScore || '-'}</td>
                 <td className="py-2 px-3">

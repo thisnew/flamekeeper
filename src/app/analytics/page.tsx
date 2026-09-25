@@ -26,16 +26,24 @@ async function getAnalytics() {
       ? Math.round(ilevelled.reduce((sum, c) => sum + (c.itemLevel || 0), 0) / ilevelled.length)
       : 0;
 
+    // WTF 导入的角色没有职业/职能信息，统一归到「未知」
     const classMap: Record<string, number> = {};
-    characters.forEach((c) => { classMap[c.class] = (classMap[c.class] || 0) + 1; });
+    characters.forEach((c) => {
+      const key = c.class || "未知";
+      classMap[key] = (classMap[key] || 0) + 1;
+    });
     const classData: ClassDatum[] = Object.entries(classMap).map(([name, value]) => ({ name, value }));
 
-    const roleMap: Record<string, number> = { Tank: 0, Healer: 0, DPS: 0 };
-    characters.forEach((c) => { roleMap[c.role] = (roleMap[c.role] || 0) + 1; });
+    const roleMap: Record<string, number> = { Tank: 0, Healer: 0, DPS: 0, 未知: 0 };
+    characters.forEach((c) => {
+      const key = c.role || "未知";
+      roleMap[key] = (roleMap[key] || 0) + 1;
+    });
     const roleData: RoleDatum[] = [
       { name: "坦克", value: roleMap.Tank, color: "#69CCF0" },
       { name: "治疗", value: roleMap.Healer, color: "#1EFF00" },
       { name: "DPS", value: roleMap.DPS, color: "#FF7D0A" },
+      { name: "未知", value: roleMap["未知"], color: "#9D9D9D" },
     ];
 
     const buckets: BucketDatum[] = [

@@ -29,6 +29,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 活动日历 | 团本、大秘境、PVP 活动的报名、替补队列、出勤标记、名单导出（CSV）与 `.ics` 日历订阅 |
 | 媒体画廊 | 击杀截图、活动合照、视频集锦 |
 | 账号系统 | 邮箱注册 + 邮箱验证、密码登录、找回密码（邮件一次性链接）、入会审批 |
+| 角色管理 | 个人中心从游戏 **WTF 配置目录**导入角色（最多 5 个账号 / 20 个角色，可排序） |
 | 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
 
 ### 权限模型
@@ -164,6 +165,7 @@ flamekeeper/
 │   │   ├── analytics/           # 图表（"use client"，隔离 recharts）
 │   │   ├── auth/                # 重置密码表单等
 │   │   ├── comments/            # 文章评论区
+│   │   ├── profile/             # 角色管理（WTF 导入 / 排序）
 │   │   ├── events/              # 活动卡片（报名 / 替补 / 出勤 / 导出）+ 日历订阅面板
 │   │   ├── guild/  home/  news/  tools/  ui/
 │   │   ├── layout/              # Header、Footer、UserMenu、SceneBackground
@@ -176,6 +178,7 @@ flamekeeper/
 │   │   ├── mailer.ts            # SMTP 发信（含 smtp_pass 解密）+ 邮件模板
 │   │   ├── password-reset.ts    # 重置令牌的生成/摘要/校验/限流
 │   │   ├── event-signup.ts      # 报名/替补/出勤 的状态机与补位逻辑
+│   │   ├── wtf.ts               # WTF 目录解析（账号/服务器/角色名）+ 过滤与配额常量
 │   │   ├── ics.ts               # iCalendar 生成（按字节折行 + RFC 5545 转义）
 │   │   ├── calendar-feed.ts     # 日历订阅密钥的生成/校验/轮换
 │   │   ├── datetime.ts          # 统一时间格式化（显式时区，避免 hydration mismatch）
@@ -900,7 +903,7 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 
 ## 📝 数据模型一览
 
-共 **19 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
+共 **20 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
 
 **账号与鉴权（NextAuth 所需）**
 
@@ -915,8 +918,13 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 **资料与入会**
 
 - `Profile` —— 用户档案
-- `Application` —— 入会申请（申请编号、审核状态、推荐人）
-- `Character` —— 魔兽角色（13 职业着色，关联用户）
+- `Application` —— 入会申请（申请编号、审核状态）。**游戏信息字段已改为可空**：
+  注册只填昵称，这些字段不再收集，保留是为了兼容历史数据。
+- `Character` —— 魔兽角色。`faction` / `class` / `spec` / `role` **可空** ——
+  WTF 导入只能拿到「账号/服务器/角色名」，职业专精拿不到，缺省显示「未设置」。
+  另有 `accountName`（来自哪个 WTF 账号）与 `sortOrder`（个人中心排序，最多 20 个）。
+- `WtfAccount` —— 成员上传过的 WTF 账号目录（**每位最多 5 个**）。
+  只保存目录名，不保存任何文件内容。
 
 **内容**
 
