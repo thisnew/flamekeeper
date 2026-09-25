@@ -222,6 +222,42 @@ model WtfAccount {
   @@index([userId])
 }
 
+/// 国服服务器（大区/服务器）字典。
+///
+/// 数据来自暴雪国服接口，由管理员在后台手动定期更新：
+///   https://webapi.blizzard.cn/wow-armory-server/api/server_status?server_type=wow_mainline
+///
+/// 用途：其它功能需要「中文服务器名 ↔ 短写英文名」的对应关系 ——
+/// 例如 WTF 导入的角色目录名是中文（破碎岭），而 Raider.IO 等接口要英文 slug
+/// （broken-peaks）。存本地是为了**不依赖外部接口可用性**，查表即可。
+///
+/// 注意：接口里的 `id` 是**服务器组**（多个服务器共享同一个 id），
+/// 真正唯一的键是 `name` 与 `slug`。
+model GameRealm {
+  id             String   @id @default(cuid())
+  /// 中文服务器名，如「燃烧之刃」—— 与 WTF 目录名一致，是主要查找键
+  name           String   @unique
+  /// 短写英文名（slug），如 burning-blade —— 供外部 API 使用
+  slug           String   @unique
+  /// 暴雪服务器组 id（不唯一）
+  groupId        Int?
+  /// 大区：一区 / 三区 / 五区 / 十区 / 推荐服务器
+  category       String?
+  typeName       String? // 普通 / RP
+  typeType       String?
+  populationName String? // 低 / 中 / 高 / 满
+  populationType String?
+  statusName     String? // 正常 / 维护
+  statusType     String? // UP / DOWN
+  locale         String?
+  timezone       String?
+  region         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([category])
+}
+
 model RaidProgress {
   id         String   @id @default(cuid())
   raidName   String

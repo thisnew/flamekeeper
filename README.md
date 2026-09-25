@@ -31,6 +31,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 账号系统 | 邮箱注册 + 邮箱验证、密码登录、找回密码（邮件一次性链接）、入会审批 |
 | 角色管理 | 个人中心**上传游戏 WTF 配置**并保存为个人档案；自动识别 账号/服务器/角色，最多 5 个账号 / 20 个角色，可排序、可打包导出 zip |
 | 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
+| 公会数据更新 | 管理员手动抓取**国服服务器字典**（中文名 ↔ 英文 slug）存本地，供其它功能查表 |
 
 ### 权限模型
 
@@ -180,6 +181,7 @@ flamekeeper/
 │   │   ├── event-signup.ts      # 报名/替补/出勤 的状态机与补位逻辑
 │   │   ├── wtf.ts               # WTF 目录解析（账号/服务器/角色名）+ 过滤与配额常量
 │   │   ├── wtf-storage.ts       # WTF 文件的私有存储（路径穿越防护 / 读写 / 打包）
+│   │   ├── realms.ts            # 国服服务器字典：抓取/解析/落库/查表（中文名 ↔ 英文 slug）
 │   │   ├── ics.ts               # iCalendar 生成（按字节折行 + RFC 5545 转义）
 │   │   ├── calendar-feed.ts     # 日历订阅密钥的生成/校验/轮换
 │   │   ├── datetime.ts          # 统一时间格式化（显式时区，避免 hydration mismatch）
@@ -908,7 +910,7 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 
 ## 📝 数据模型一览
 
-共 **20 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
+共 **21 个模型**（`prisma/schema.prisma`），参考 PLAN.md 第九节：
 
 **账号与鉴权（NextAuth 所需）**
 
@@ -932,6 +934,10 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
   文件本身存在**私有目录**（`storage/wtf/<userId>/`，见部署说明），
   数据库只记录账号名与服务器数。路径里 `Account/<账号>/SavedVariables/`
   属**账号级**插件数据，不会被误当成服务器。
+- `GameRealm` —— **国服服务器字典**（实测 360 条）。`name`（中文，如「燃烧之刃」）
+  与 `slug`（短写英文，如 `burning-blade`）**各自唯一**；`groupId` 是暴雪的
+  **服务器组** id（多个服务器共享，**不能当唯一键**）。由管理员在
+  `后台 → 公会数据更新` 手动抓取更新，供其它功能做中英名换算。
 
 **内容**
 

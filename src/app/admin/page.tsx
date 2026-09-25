@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
-import { Shield, FileText, Users, Puzzle, CalendarDays, Image, Settings, BarChart3, ClipboardCheck, Mail, MessageSquare, Crown } from "lucide-react";
+import { Shield, FileText, Users, Puzzle, CalendarDays, Image, Settings, BarChart3, ClipboardCheck, Mail, MessageSquare, Crown, Database } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
@@ -41,6 +41,12 @@ export default async function AdminPage() {
       label: "评论审核",
       desc: "审核成员在文章下的评论",
       badge: pendingComments > 0 ? pendingComments : undefined,
+    },
+    {
+      href: "/admin/realms",
+      icon: Database,
+      label: "公会数据更新",
+      desc: "国服服务器字典（中文名 ↔ 英文 slug），供其它功能查表",
     },
     ...(user.role === "ADMIN" ? [
       { href: "/admin/mail", icon: Mail, label: "邮件群发", desc: "SMTP 测试与会员群发邮件" },
