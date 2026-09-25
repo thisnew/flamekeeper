@@ -964,6 +964,120 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 
 ---
 
+## 🔌 外部 API 参考
+
+本项目对外部数据源有依赖，这里集中记录**实测结论**，避免以后重复踩坑。
+
+### Raider.IO 开发者 API
+
+**文档与权威规范**
+
+| | 地址 |
+| --- | --- |
+| 官网文档 | https://raider.io/api |
+| **Swagger 规范** | https://raider.io/cn/swagger.json（`0.62.x`，有完整端点/字段定义） |
+| 申请 API Key | http://raider.io/settings/apps |
+
+**鉴权与配额**
+
+- 鉴权参数是 **`access_key`**（query 参数），不是 header、也不是 OAuth。
+- 不加 key 也能用，但**带 key 配额更高**（Swagger 原话：*Apps with API keys have higher rate limits*）。
+- 具体数值官方未公开（第三方说法不一致，常见的是 300 req/min 量级）。
+- ⚠ **本项目的原则：只在管理员手动点按钮时调用，绝不轮询、不做定时任务。**
+  抓取结果落库后，站内一切查询都走本地表，不再触碰外部接口。
+
+**本项目用到的端点**
+
+```
+GET /api/v1/guilds/profile
+    ?region=cn&realm=<slug|title>&name=<公会名>&fields=members&access_key=…
+```
+
+- `region` 枚举：`us` / `eu` / `tw` / `kr` / **`cn`** ✅
+- `realm` 收 slug 或 title（`echo-ridge` / `Echo Ridge` 都行）
+- `fields` 支持：`raid_progression`、`raid_rankings`、
+  `raid_encounters:RAID_SLUG:DIFFICULTY`、**`members`**
+- **必须显式传 `fields=members`**，否则响应里根本没有 `members` 字段
+
+**实测响应结构**（Swagger 的响应定义**不完整**，以下是真实响应的字段）：
+
+```jsonc
+{
+  "name": "Eternal Flame", "displayName": null,
+  "faction": "alliance", "region": "cn", "realm": "Echo Ridge",
+  "last_crawled_at": "2026-09-25T07:38:15.000Z",
+  "profile_url": "…",
+  "members": [
+    {
+      "rank": 3,                       // 公会职级（数字，越小越高；实测 0-8）
+      "character": {
+        "name": "君少",                  // 国服多为中文
+        "realm": "Echo Ridge",         // ⚠ 英文 Title，不是中文、不是 slug
+        "class": "Rogue",
+        "active_spec_name": "Subtlety",
+        "active_spec_role": "DPS",     // ⚠ 大写：TANK | HEALER | DPS
+        "race": "Blood Elf", "gender": "female",
+        "achievement_points": 34785,
+        "region": "cn",
+        "last_crawled_at": "…", "profile_url": "…"
+        // ⚠ 没有装等、没有角色等级
+      }
+    }
+  ]
+}
+```
+
+> ⚠️ **Swagger 的 `ViewGuildProfileResponse` 只声明了 7 个字段，不含 `members`／`displayName`／`last_crawled_at`。**
+> 成员结构只能从真实响应得知 —— 不要以为照 Swagger 写就够了。
+
+**本项目实测数据**（`cn` / `echo-ridge` / `Eternal Flame`）：
+
+- 257 名成员，分布在 **60 个不同服务器**（跨服公会）
+- **216/257 角色名是中文** —— 所以与 WTF 目录名基本是精确匹配
+- 职级分布 `{0:1, 1:8, 2:9, 3:85, 4:22, 5:132}`
+
+**服务器命名的错配（关键坑）**：
+
+| 来源 | 示例 |
+| --- | --- |
+| WTF 目录 | `回音山`（中文） |
+| Raider.IO `character.realm` | `Echo Ridge`（英文 Title） |
+| 暴雪国服接口 `slug` | `echo-ridge` |
+
+三者指的同一个服务器。`lib/raiderio.ts` 的 `canonicalRealmSlug()` 通过
+`lib/realms.ts` 的字典把它们**统一归一到 slug**，这是中英能对上的关键。
+
+**本项目用到的其它端点**（尚未使用，留作参考）：
+
+| 端点 | 用途 |
+| --- | --- |
+| `/api/v1/characters/profile` | 角色详情：装等、大秘境分数、团本进度（**补齐成员装等的正解**） |
+| `/api/v1/periods` | 当前/上期/下期赛季 id 与日期范围 |
+| `/api/v1/mythic-plus/runs` | 指定条件的顶尖大秘境记录 |
+| `/api/v1/mythic-plus/season-cutoffs` | 大秘境赛季分数线 |
+| `/api/v1/raiding/raid-rankings` | 团本排行 |
+| `/api/v1/raiding/static-data` | 团本与 BOSS 静态数据 |
+| `/api/v1/mythic-plus/static-data` | 副本与赛季静态数据 |
+| `/api/v1/guilds/boss-kill` | 公会首杀信息 |
+| `/api/v1/live-tracking/*` | 战斗日志派生数据（装备汇总、团本阵容、首杀进度等） |
+
+> 💡 需要**成员装等/大秘境分数**时，用 `/api/v1/characters/profile`
+> （`fields=gear,mythic_plus_scores_by_season,raid_progression`）逐角色查 ——
+> 注意这是**按角色**的调用，人多了会很快消耗配额，务必缓存落库。
+
+### 暴雪国服服务器接口
+
+```
+GET https://webapi.blizzard.cn/wow-armory-server/api/server_status?server_type=wow_mainline
+```
+
+- 实测 360 条，结构 `{ code: 0, message: "成功", data: { List: [...] } }`
+- `id` 是**服务器组**（多个服务器共享，如 810 同时是火羽山/迦罗娜/…），
+  **不能当唯一键**；唯一的是 `name`（中文）与 `slug`（英文短写）
+- 由管理员在 `后台 → 公会数据更新` 手动更新，见 `lib/realms.ts`
+
+---
+
 ## 🤝 贡献指南
 
 1. Fork 本仓库
