@@ -44,6 +44,22 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 > `/pending` 页面查看申请进度。审批通过者记录**引荐人**（即审批他的人），
 > 在「成员名册 → 结构图」中以树形展示。
 
+### 会阶（公会内部身份）
+
+与上面的系统权限是**两个独立维度**：
+
+| | 取值 | 作用 |
+| --- | --- | --- |
+| `role` | VISITOR / USER / MEMBER / OFFICER / ADMIN | **能不能**进后台、改设置 |
+| `guildRank` | 会长 / 团长 / 核心 / 成员 | 在公会里**是什么身份**（展示） |
+
+> ⚠️ **管理员 ≠ 会长**。管理员是站点超级管理员，会长是一个会阶 ——
+> 一个人可以同时是两者，也可以只是其中之一。
+> （早期代码把 `ADMIN` 直接显示成「会长」，那是错的，已修正。）
+>
+> 会阶与引荐关系由**管理员**在 `后台 → 成员与会阶` 调整；官员可查看但不能改。
+> 调整引荐人时会做**防环校验** —— 否则「结构图」的递归渲染会无限循环。
+
 ---
 
 ## 🚀 技术栈
@@ -102,7 +118,8 @@ flamekeeper/
 │   │   │                        #   events 下含 signup（报名/替补/出勤）、export（CSV）、
 │   │   │                        #     ics（日历订阅）、ics-key（查看/轮换订阅密钥）
 │   │   │                        #   comments（发表 / 审核 / 删除）
-│   │   ├── admin/               # 管理后台（posts, applications, roster, addons,
+│   │   │                        #   admin/members（会阶与引荐关系，仅管理员可改）
+│   │   ├── admin/               # 管理后台（posts, applications, roster, members, addons,
 │   │   │                        #   events, gallery, comments, settings, mail）
 │   │   ├── auth/                # login, register, verify-email,
 │   │   │                        #   forgot-password, reset-password
@@ -140,6 +157,7 @@ flamekeeper/
 │   │   ├── datetime.ts          # 统一时间格式化（显式时区，避免 hydration mismatch）
 │   │   ├── secrets.ts           # 加解密的类型化再导出（实现见 prisma/secrets.mjs）
 │   │   ├── comments.ts          # 评论的审核开关与内容规范化
+│   │   ├── guild-rank.ts        # 会阶常量/标签/排序（与系统权限解耦）
 │   │   ├── app-url.ts           # 站点对外地址（拼邮件绝对链接）
 │   │   ├── auth-utils.ts        # 客户端角色判断（useIsAdmin 等）
 │   │   ├── validations.ts       # Zod schema
@@ -862,7 +880,8 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 
 **账号与鉴权（NextAuth 所需）**
 
-- `User` —— 账号、邮箱、密码哈希、角色、状态、邮箱验证时间、引荐人 `referredById`
+- `User` —— 账号、邮箱、密码哈希、系统权限 `role`、**会阶 `guildRank`**（两者独立）、
+  状态、邮箱验证时间、引荐人 `referredById`
 - `Account` / `Session` / `VerificationToken` —— NextAuth 标准适配器表。
   **当前未被使用**：会话走 JWT（`strategy: "jwt"`），未接线 `PrismaAdapter`，
   保留在 schema 中是为了将来接入 OAuth / 数据库会话时无需迁移。

@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
-import { Shield, FileText, Users, Puzzle, CalendarDays, Image, Settings, BarChart3, ClipboardCheck, Mail, MessageSquare } from "lucide-react";
+import { Shield, FileText, Users, Puzzle, CalendarDays, Image, Settings, BarChart3, ClipboardCheck, Mail, MessageSquare, Crown } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
@@ -26,6 +26,12 @@ export default async function AdminPage() {
     { href: "/admin/posts", icon: FileText, label: "信息发布管理", desc: "发布和编辑公告、新闻与战报" },
     { href: "/admin/applications", icon: ClipboardCheck, label: "入会审批", desc: "审核入会申请" },
     { href: "/admin/roster", icon: Users, label: "成员名册管理", desc: "管理公会成员资料" },
+    {
+      href: "/admin/members",
+      icon: Crown,
+      label: "成员与会阶",
+      desc: "调整会阶（会长/团长/核心/成员）与引荐关系",
+    },
     { href: "/admin/addons", icon: Puzzle, label: "插件分享管理", desc: "管理插件、WA 字符串" },
     { href: "/admin/events", icon: CalendarDays, label: "活动管理", desc: "创建和管理公会活动" },
     { href: "/admin/gallery", icon: Image, label: "画廊管理", desc: "上传和管理图片视频" },

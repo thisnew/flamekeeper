@@ -16,6 +16,11 @@ model User {
   image          String?
   role           String               @default("USER") // VISITOR | USER | MEMBER | OFFICER | ADMIN
   status         String               @default("PENDING_EMAIL") // PENDING_EMAIL | PENDING_APPROVAL | APPROVED | REJECTED | NEEDS_INFO
+  /// 会阶（公会内部头衔），与上面的系统权限 role 完全解耦：
+  ///   role      = 能不能进后台 / 改设置（系统权限）
+  ///   guildRank = 在公会里是什么身份（展示用 + 招募语境）
+  /// 注意：管理员（ADMIN）**不等于**会长，二者是两个维度。
+  guildRank      String               @default("MEMBER") // LEADER 会长 | RAID_LEADER 团长 | CORE 核心 | MEMBER 成员
   referredById   String? // who approved/referred this member
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt

@@ -1,12 +1,46 @@
 import { Metadata } from "next";
-import { Shield, Flame, Swords, Crown, MapPin, Calendar } from "lucide-react";
+import { Shield, Flame, Swords, Crown, MapPin, Calendar, Users } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
   title: "公会介绍",
   description: "了解 Eternal Flame 公会的历史、理念、管理层与团队成就。薪火不灭，荣耀永燃。",
 };
 
-export default function AboutPage() {
+/**
+ * 四个会阶 + 当前持有者。
+ *
+ * 会阶（公会内部身份）与系统权限（能不能进后台）是两个维度：
+ * 管理员 ≠ 会长。详见 lib/guild-rank.ts。
+ */
+const RANK_ROWS = [
+  { rank: "LEADER", label: "会长", desc: "公会总负责人，战略决策与外交", icon: Crown },
+  { rank: "RAID_LEADER", label: "团长", desc: "团队副本战术制定与现场指挥", icon: Swords },
+  { rank: "CORE", label: "核心", desc: "稳定出勤、带动团队氛围的骨干", icon: Shield },
+  { rank: "MEMBER", label: "成员", desc: "公会正式成员", icon: Users },
+];
+
+async function getRankHolders() {
+  try {
+    const users = await prisma.user.findMany({
+      where: { status: "APPROVED" },
+      select: { name: true, email: true, guildRank: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const map: Record<string, string[]> = {};
+    for (const u of users) {
+      const key = u.guildRank || "MEMBER";
+      (map[key] ||= []).push(u.name || u.email);
+    }
+    return map;
+  } catch {
+    return {} as Record<string, string[]>;
+  }
+}
+
+export default async function AboutPage() {
+  const holders = await getRankHolders();
+
   return (
     <div className="page-enter">
       <section className="py-16 border-b border-border-default bg-gradient-to-b from-bg-secondary/50 to-transparent">
@@ -65,25 +99,36 @@ export default function AboutPage() {
           {/* Leadership */}
           <div className="bg-bg-card border border-border-default rounded p-8 mb-8">
             <Crown className="w-10 h-10 text-wow-gold mb-4" />
-            <h2 className="font-display text-2xl font-bold text-wow-gold mb-6">管理层</h2>
+            <h2 className="font-display text-2xl font-bold text-wow-gold mb-2">会阶</h2>
+            <p className="text-sm text-text-muted mb-6">
+              公会内部身份，与站点权限无关 —— 管理员不等于会长。
+            </p>
             <div className="grid sm:grid-cols-2 gap-4">
-              {[
-                { role: "会长", name: "待定", desc: "公会总负责人，战略决策与外交" },
-                { role: "指挥", name: "待定", desc: "团队副本战术制定与现场指挥" },
-                { role: "官员 · 招募", name: "待定", desc: "入会审批、新人引导与招募宣传" },
-                { role: "官员 · 后勤", name: "待定", desc: "插件维护、数据分析与技术支持" },
-              ].map((officer, i) => (
-                <div key={i} className="flex gap-4 p-4 rounded bg-bg-secondary/50">
-                  <div className="w-12 h-12 rounded-full bg-bg-card border border-border-gold flex items-center justify-center shrink-0">
-                    <Crown className="w-5 h-5 text-wow-gold" />
+              {RANK_ROWS.map((row, i) => {
+                const names = holders[row.rank] ?? [];
+                const Icon = row.icon;
+                // 「成员」人数太多，只显示数量
+                const display =
+                  row.rank === "MEMBER"
+                    ? names.length > 0
+                      ? `${names.length} 位`
+                      : "暂无"
+                    : names.length > 0
+                      ? names.join("、")
+                      : "待定";
+                return (
+                  <div key={i} className="flex gap-4 p-4 rounded bg-bg-secondary/50">
+                    <div className="w-12 h-12 rounded-full bg-bg-card border border-border-gold flex items-center justify-center shrink-0">
+                      <Icon className="w-5 h-5 text-wow-gold" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-wow-gold font-bold mb-0.5">{row.label}</div>
+                      <div className="font-bold text-text-primary">{display}</div>
+                      <div className="text-xs text-text-muted mt-1">{row.desc}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-wow-gold font-bold mb-0.5">{officer.role}</div>
-                    <div className="font-bold text-text-primary">{officer.name}</div>
-                    <div className="text-xs text-text-muted mt-1">{officer.desc}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

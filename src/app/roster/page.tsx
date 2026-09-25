@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { Shield } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/page-guard";
+import { guildRankOrder } from "@/lib/guild-rank";
 import type { TreeNode } from "@/components/guild/ReferralTree";
 import RosterTabs from "@/components/guild/RosterTabs";
 
@@ -9,8 +10,6 @@ export const metadata: Metadata = {
   title: "成员名册",
   description: "查看 Eternal Flame 公会成员名单，职业、专精、进度与引荐结构。",
 };
-
-const ROLE_ORDER: Record<string, number> = { ADMIN: 0, OFFICER: 1, MEMBER: 2 };
 
 async function getRosterData() {
   try {
@@ -25,9 +24,9 @@ async function getRosterData() {
       }),
       prisma.user.findMany({
         where: { role: { in: ["MEMBER", "OFFICER", "ADMIN"] } },
-        orderBy: [{ role: "asc" }, { name: "asc" }],
+        orderBy: [{ name: "asc" }],
         select: {
-          id: true, name: true, email: true, role: true, referredById: true,
+          id: true, name: true, email: true, role: true, guildRank: true, referredById: true,
           characters: { select: { name: true, class: true, spec: true, role: true }, take: 1 },
         },
       }),
@@ -44,6 +43,7 @@ type RosterUser = {
   name: string | null;
   email: string;
   role: string;
+  guildRank: string;
   referredById: string | null;
   characters: { name: string; class: string; spec: string; role: string }[];
 };
@@ -56,6 +56,7 @@ function buildReferralForest(users: RosterUser[]): TreeNode[] {
       id: u.id,
       name: u.name || u.email,
       role: u.role,
+      guildRank: u.guildRank,
       email: u.email,
       character: u.characters[0] ?? null,
       children: [],
@@ -97,7 +98,7 @@ function buildReferralForest(users: RosterUser[]): TreeNode[] {
   const sortNodes = (arr: TreeNode[]) => {
     arr.sort(
       (a, b) =>
-        (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
+        guildRankOrder(a.guildRank) - guildRankOrder(b.guildRank) ||
         String(a.name).localeCompare(String(b.name), "zh-CN")
     );
     arr.forEach((n) => sortNodes(n.children));

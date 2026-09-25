@@ -10,6 +10,8 @@ export interface TreeNode {
   id: string;
   name: string;
   role: string;
+  /** 会阶（LEADER / RAID_LEADER / CORE / MEMBER）—— 徽章按它显示，与 role 解耦 */
+  guildRank: string;
   email?: string | null;
   character?: {
     name: string;
@@ -27,10 +29,17 @@ const CLASS_COLOR_HEX: Record<string, string> = {
   Evoker: "#33937F",
 };
 
-const ROLE_META: Record<string, { label: string; icon: any; cls: string }> = {
-  ADMIN: { label: "会长", icon: Crown, cls: "text-wow-gold border-wow-gold/40 bg-wow-gold/10" },
-  OFFICER: { label: "官员", icon: Shield, cls: "text-wow-blue-light border-wow-blue/40 bg-wow-blue/10" },
-  MEMBER: { label: "成员", icon: Swords, cls: "text-wow-green border-wow-green/30 bg-wow-green-dark/10" },
+/**
+ * 结构图徽章按**会阶**显示，不再按系统权限 role。
+ *
+ * 历史问题：以前这里是 ROLE_META 且把 ADMIN 直接标成「会长」——
+ * 但管理员是站点超级管理员，与会长是两个维度（见 lib/guild-rank.ts）。
+ */
+const RANK_META: Record<string, { label: string; icon: any; cls: string }> = {
+  LEADER: { label: "会长", icon: Crown, cls: "text-wow-gold border-wow-gold/40 bg-wow-gold/10" },
+  RAID_LEADER: { label: "团长", icon: Swords, cls: "text-wow-orange border-wow-orange/40 bg-wow-orange/10" },
+  CORE: { label: "核心", icon: Shield, cls: "text-wow-blue-light border-wow-blue/40 bg-wow-blue/10" },
+  MEMBER: { label: "成员", icon: UserIcon, cls: "text-wow-green border-wow-green/30 bg-wow-green-dark/10" },
 };
 
 function countDescendants(node: TreeNode): number {
@@ -121,7 +130,7 @@ function TreeItem({
 }) {
   const isCollapsed = collapsed.has(node.id);
   const hasChildren = node.children.length > 0;
-  const meta = ROLE_META[node.role] ?? ROLE_META.MEMBER;
+  const meta = RANK_META[node.guildRank] ?? RANK_META.MEMBER;
   const RoleIcon = meta.icon;
   const classColor = node.character ? CLASS_COLOR_HEX[node.character.class] : undefined;
   const descendants = hasChildren ? countDescendants(node) : 0;
