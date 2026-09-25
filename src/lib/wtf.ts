@@ -59,6 +59,15 @@ export function isAllowedWtfFile(filename: string): boolean {
 }
 
 /**
+ * 账号目录下**不是服务器**的保留目录名。
+ *
+ * 关键：`Account/<账号>/SavedVariables/` 是**账号级**的插件数据（跨角色共享），
+ * 它恰好出现在「服务器」的位置上。不排除的话会被解析成
+ * 「服务器=SavedVariables、角色=下一层」，导入一堆根本不存在的角色。
+ */
+const NON_REALM_DIRS = new Set(["savedvariables", "wtf", "cache", "logs", "errors"]);
+
+/**
  * 从 `webkitRelativePath` 里解析出 账号 / 服务器 / 角色。
  *
  * 用户可能选三种不同的目录，**三种都必须能解析**。
@@ -72,7 +81,9 @@ export function isAllowedWtfFile(filename: string): boolean {
  * 规则：先找 "Account" 那一层（大小写不敏感）；找不到就把第 0 段当账号名
  * —— 这正是情形 C。三种情形下「账号 → 服务器 → 角色」的相对顺序一致。
  *
- * 层级不足返回 null：宁可拒绝，也不要把服务器名当成账号名导进去。
+ * 返回 null 的两种情况（宁缺毋滥，不猜）：
+ *   1. 层级不足 —— 否则会把服务器名当成账号名导进去
+ *   2. 服务器位是 SavedVariables 等账号级目录 —— 那不是角色
  */
 export function parseWtfPath(
   relativePath: string
@@ -90,6 +101,10 @@ export function parseWtfPath(
   const realm = parts[base + 1];
   const character = parts[base + 2];
   if (!accountName || !realm || !character) return null;
+
+  // 排除账号级目录（SavedVariables 等）—— 它们不是服务器
+  if (NON_REALM_DIRS.has(realm.toLowerCase())) return null;
+  if (NON_REALM_DIRS.has(character.toLowerCase())) return null;
 
   return { accountName, realm, character };
 }

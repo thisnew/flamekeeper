@@ -46,3 +46,6 @@ temp/
 # Member-uploaded attachments (runtime data, not source)
 public/uploads/*
 !public/uploads/.gitkeep
+
+# WTF 上传的私有存储（运行时数据，不入库）
+storage/

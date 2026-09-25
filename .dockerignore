@@ -16,5 +16,7 @@ prisma/dev.db
 prisma/dev.db-journal
 data/
 public/uploads
+# WTF 私有存储（构建上下文里不需要，运行期由数据卷提供）
+storage
 .reasonix
 .claude

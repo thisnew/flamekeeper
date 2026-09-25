@@ -20,6 +20,8 @@ export default function ProfilePage() {
   const [applications, setApplications] = useState<any[]>([]);
   const [wtfAccounts, setWtfAccounts] = useState<ExistingAccount[]>([]);
   const [wtfCharacters, setWtfCharacters] = useState<ExistingCharacter[]>([]);
+  const [wtfFileCount, setWtfFileCount] = useState(0);
+  const [wtfTotalBytes, setWtfTotalBytes] = useState(0);
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirm: "" });
   const [pwBusy, setPwBusy] = useState(false);
 
@@ -34,6 +36,8 @@ export default function ProfilePage() {
       .then((d) => {
         setWtfAccounts(d.accounts || []);
         setWtfCharacters(d.characters || []);
+        setWtfFileCount(d.fileCount || 0);
+        setWtfTotalBytes(d.totalBytes || 0);
       })
       .catch(() => {});
   }, [user?.id]);
@@ -162,7 +166,12 @@ export default function ProfilePage() {
         <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
           <Gamepad2 className="w-4 h-4 text-wow-gold" /> 角色管理（WTF 导入）
         </h3>
-        <WtfManager accounts={wtfAccounts} characters={wtfCharacters} />
+        <WtfManager
+          accounts={wtfAccounts}
+          characters={wtfCharacters}
+          fileCount={wtfFileCount}
+          totalBytes={wtfTotalBytes}
+        />
       </div>
 
       <div className="bg-bg-card border border-border-default rounded p-6">

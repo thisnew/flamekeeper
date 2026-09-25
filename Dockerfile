@@ -53,9 +53,11 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder /app/node_modules/nodemailer ./node_modules/nodemailer
 
-# Uploads directory for member attachments (PostgreSQL data lives in its own volume)
-RUN mkdir -p /app/public/uploads && \
-    chown -R nextjs:nodejs /app/public/uploads
+# Uploads directory for member attachments, plus PRIVATE storage for uploaded
+# WTF configs. storage/ is deliberately NOT under public/ -- those files are
+# only reachable through the authenticated download route.
+RUN mkdir -p /app/public/uploads /app/storage && \
+    chown -R nextjs:nodejs /app/public/uploads /app/storage
 
 USER nextjs
 

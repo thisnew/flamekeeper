@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  Download,
   FolderOpen,
   Loader2,
   Trash2,
@@ -32,12 +33,24 @@ export type ExistingCharacter = {
 
 type PickedFile = { relativePath: string; size: number };
 
+/** 人类可读的字节数。 */
+function formatBytes(n: number): string {
+  if (!n) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1);
+  return `${(n / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
 export default function WtfManager({
   accounts,
   characters,
+  fileCount = 0,
+  totalBytes = 0,
 }: {
   accounts: ExistingAccount[];
   characters: ExistingCharacter[];
+  fileCount?: number;
+  totalBytes?: number;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +58,8 @@ export default function WtfManager({
   const [busy, setBusy] = useState(false);
   const [parsed, setParsed] = useState<ParsedWtf | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set()); // "realm/name"
+  /** 真正要上传的 File 对象（不是路径）—— 「上传 WTF 内的所有内容」 */
+  const [pickedFiles, setPickedFiles] = useState<File[]>([]);
 
   // 已存在的角色（防止重复勾选）
   const existingKeys = useMemo(
@@ -110,7 +125,21 @@ export default function WtfManager({
       }
     }
     setPicked(all);
-    toast.success(`解析出 ${result.accounts.length} 个账号`);
+
+    // 只保留真正要上传的文件：扩展名白名单 + 不超过 1000KB（服务端还会再验一次）
+    const uploadable = files.filter((f) => {
+      const name = ((f as any).webkitRelativePath || f.name || "").split(/[/\\]/).pop() || "";
+      const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+      return (
+        (["txt", "md5", "lua", "bak", "old", "wtf"] as string[]).includes(ext) &&
+        f.size <= 1000 * 1024
+      );
+    });
+    setPickedFiles(uploadable);
+
+    toast.success(
+      `解析出 ${result.accounts.length} 个账号，将上传 ${uploadable.length} 个文件`
+    );
   }
 
   function toggle(key: string) {
@@ -126,33 +155,41 @@ export default function WtfManager({
 
   async function doImport() {
     if (!parsed) return;
-    const payload = parsed.accounts
-      .map((a) => ({
-        accountName: a.accountName,
-        characters: a.characters.filter((c) => picked.has(`${c.realm}/${c.name}`)),
-      }))
-      .filter((a) => a.characters.length > 0);
 
-    if (payload.length === 0) {
+    // 勾选的角色 → 用于建档
+    const selectedChars = parsed.accounts.flatMap((a) =>
+      a.characters
+        .filter((c) => picked.has(`${c.realm}/${c.name}`))
+        .map((c) => ({ accountName: a.accountName, realm: c.realm, name: c.name }))
+    );
+
+    if (selectedChars.length === 0) {
       toast.error("请至少勾选一个角色");
+      return;
+    }
+    if (pickedFiles.length === 0) {
+      toast.error("没有可上传的文件（可能全部超过 1000KB 或扩展名不符）");
       return;
     }
 
     setBusy(true);
     try {
-      const res = await fetch("/api/profile/wtf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accounts: payload }),
-      });
+      // 真正把文件内容传上去 —— 「上传 WTF 内的所有内容，存为个人配置文件」
+      const form = new FormData();
+      for (const f of pickedFiles) form.append("files", f, (f as any).webkitRelativePath || f.name);
+      form.append("characters", JSON.stringify(selectedChars));
+
+      // 注意：不要手动设 Content-Type，浏览器要自己带 multipart boundary
+      const res = await fetch("/api/profile/wtf", { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error || "导入失败");
+        toast.error(data.error || "导入失败", { duration: 8000 });
         return;
       }
       toast.success(data.message || "导入完成");
       setParsed(null);
       setPicked(new Set());
+      setPickedFiles([]);
       if (inputRef.current) inputRef.current.value = "";
       router.refresh();
     } catch {
@@ -281,7 +318,19 @@ export default function WtfManager({
         <span className="text-xs text-text-muted">
           已用账号 {accounts.length}/{WTF_MAX_ACCOUNTS} · 角色 {characters.length}/
           {WTF_MAX_CHARACTERS}
+          {fileCount > 0 && ` · 已存 ${fileCount} 个文件 (${formatBytes(totalBytes)})`}
         </span>
+
+        {fileCount > 0 && (
+          <a
+            href="/api/profile/wtf/download"
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-border-default text-text-secondary rounded hover:border-wow-gold hover:text-wow-gold transition-colors"
+            title="把已保存的 WTF 文件打包下载"
+          >
+            <Download className="w-4 h-4" />
+            导出 zip
+          </a>
+        )}
       </div>
 
       {/* ---- 解析结果 ---- */}

@@ -91,6 +91,8 @@ services:
     volumes:
       # 成员上传的附件（<=10MB 分享）
       - flamekeeper-uploads:/app/public/uploads
+      # WTF 上传的私有存储 —— 刻意不放 public/，只能经鉴权路由下载
+      - flamekeeper-storage:/app/storage
     healthcheck:
       # /api/health 是公开的轻量级存活检查，不依赖数据库 / 鉴权；
       # 比 /api/settings 更安全（settings 接口未来可能要求登录）
@@ -111,3 +113,6 @@ volumes:
     name: flamekeeper-pgdata
   flamekeeper-uploads:
     name: flamekeeper-uploads
+  # WTF 上传文件（私有，仅本人可下载）
+  flamekeeper-storage:
+    name: flamekeeper-storage

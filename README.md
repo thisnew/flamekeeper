@@ -29,7 +29,7 @@ Eternal Flame 公会官方网站 —— 一个面向魔兽世界公会场景的�
 | 活动日历 | 团本、大秘境、PVP 活动的报名、替补队列、出勤标记、名单导出（CSV）与 `.ics` 日历订阅 |
 | 媒体画廊 | 击杀截图、活动合照、视频集锦 |
 | 账号系统 | 邮箱注册 + 邮箱验证、密码登录、找回密码（邮件一次性链接）、入会审批 |
-| 角色管理 | 个人中心从游戏 **WTF 配置目录**导入角色（最多 5 个账号 / 20 个角色，可排序） |
+| 角色管理 | 个人中心**上传游戏 WTF 配置**并保存为个人档案；自动识别 账号/服务器/角色，最多 5 个账号 / 20 个角色，可排序、可打包导出 zip |
 | 管理后台 | 官员专属的内容审核、数据维护、设置中心 |
 
 ### 权限模型
@@ -179,6 +179,7 @@ flamekeeper/
 │   │   ├── password-reset.ts    # 重置令牌的生成/摘要/校验/限流
 │   │   ├── event-signup.ts      # 报名/替补/出勤 的状态机与补位逻辑
 │   │   ├── wtf.ts               # WTF 目录解析（账号/服务器/角色名）+ 过滤与配额常量
+│   │   ├── wtf-storage.ts       # WTF 文件的私有存储（路径穿越防护 / 读写 / 打包）
 │   │   ├── ics.ts               # iCalendar 生成（按字节折行 + RFC 5545 转义）
 │   │   ├── calendar-feed.ts     # 日历订阅密钥的生成/校验/轮换
 │   │   ├── datetime.ts          # 统一时间格式化（显式时区，避免 hydration mismatch）
@@ -346,6 +347,9 @@ Docker 自动完成以下操作：
 - 应用等待 `db` 健康检查通过后才启动（`depends_on: condition: service_healthy`）
 - 启动时由 `prisma/init-db.mjs` 建表（DDL 在构建阶段由 schema 生成）、`prisma/seed.mjs` 写入初始数据
 - 成员附件存于 `flamekeeper-uploads` 卷
+- **WTF 上传文件存于 `flamekeeper-storage` 卷**（挂到 `/app/storage`）。
+  刻意**不放在 `public/` 下** —— `public` 里的文件可被 URL 直接访问，
+  而 SavedVariables 常含插件 token、好友/公会名单，只有本人能经鉴权路由下载。
 - 应用健康检查：`GET /api/health`（200 = 存活；`?deep=1` 加跑 `SELECT 1` 检查 DB），失败 503
 - 自动重启
 
@@ -881,7 +885,8 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 - [ ] 修改初始 admin 账号密码（`flamekeeper_admin@163.com` 的默认密码）
 - [ ] 更换 SMTP 密码为邮箱服务商提供的**授权码**，不要使用邮箱登录密码
 - [ ] 如启用 HTTPS，配置反向代理（Nginx / Caddy）
-- [ ] 定期备份：PostgreSQL（`docker compose exec db pg_dump ...`）与 `flamekeeper-uploads`（成员附件）
+- [ ] 定期备份：PostgreSQL（`docker compose exec db pg_dump ...`）、`flamekeeper-uploads`（成员附件）与 `flamekeeper-storage`（WTF 上传文件）
+- [ ] 升级到含 WTF 上传的版本后，**首次部署需让 compose 创建新卷** `flamekeeper-storage`（`docker compose up -d` 会自动创建）
 - [ ] 修改 `POSTGRES_PASSWORD` 为强密码，并确认 5432 未暴露公网
 - [ ] 配置防火墙，仅暴露 80/443 端口
 - [ ] （可选）启用 Cloudflare 等 CDN 防 DDoS
@@ -923,8 +928,10 @@ NEXT_PUBLIC_TIMEZONE=Asia/Shanghai
 - `Character` —— 魔兽角色。`faction` / `class` / `spec` / `role` **可空** ——
   WTF 导入只能拿到「账号/服务器/角色名」，职业专精拿不到，缺省显示「未设置」。
   另有 `accountName`（来自哪个 WTF 账号）与 `sortOrder`（个人中心排序，最多 20 个）。
-- `WtfAccount` —— 成员上传过的 WTF 账号目录（**每位最多 5 个**）。
-  只保存目录名，不保存任何文件内容。
+- `WtfAccount` —— 成员上传过的 WTF 账号（**每位最多 5 个**）。
+  文件本身存在**私有目录**（`storage/wtf/<userId>/`，见部署说明），
+  数据库只记录账号名与服务器数。路径里 `Account/<账号>/SavedVariables/`
+  属**账号级**插件数据，不会被误当成服务器。
 
 **内容**
 
