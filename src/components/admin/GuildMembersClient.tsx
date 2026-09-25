@@ -5,12 +5,20 @@ import { AlertCircle, Loader2, Save, Search, Users } from "lucide-react";
 import toast from "react-hot-toast";
 
 type MemberRow = {
+  id: string;
   characterName: string;
   realmTitle: string;
   className: string | null;
   specName: string | null;
   specRole: string | null;
   rank: number | null;
+  /** 已经过 WTF 验证并绑定到站内用户 */
+  verified: boolean;
+  /** 名下挂了几个站内角色 */
+  boundCount: number;
+  /** 绑定的主力角色（若有） */
+  isMain: boolean;
+  user: { name: string | null; email: string; guildRank: string } | null;
 };
 
 type Payload = {
@@ -111,13 +119,25 @@ export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  const filtered = (data?.members ?? []).filter((m) => {
+  // 只看「已验证 / 未绑定用户」
+  const [bindFilter, setBindFilter] = useState<"all" | "verified" | "unbound">("all");
+
+  const allMembers = data?.members ?? [];
+  const verifiedCount = allMembers.filter((m) => m.verified).length;
+  const unboundCount = allMembers.length - verifiedCount;
+
+  const filtered = allMembers.filter((m) => {
+    if (bindFilter === "verified" && !m.verified) return false;
+    if (bindFilter === "unbound" && m.verified) return false;
     const n = q.trim().toLowerCase();
     if (!n) return true;
     return (
       m.characterName.toLowerCase().includes(n) ||
       m.realmTitle.toLowerCase().includes(n) ||
-      (m.className ?? "").toLowerCase().includes(n)
+      (m.className ?? "").toLowerCase().includes(n) ||
+      // 也按站内用户名 / 邮箱搜，方便「这个人在公会名单里吗」
+      (m.user?.name ?? "").toLowerCase().includes(n) ||
+      (m.user?.email ?? "").toLowerCase().includes(n)
     );
   });
 
@@ -236,12 +256,37 @@ export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
       {/* ---- 成员列表 ---- */}
       {data && data.total > 0 && (
         <>
+          {/* 绑定状态统计 + 筛选 */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-text-muted">共 {allMembers.length} 人：</span>
+            {(
+              [
+                ["all", `全部 ${allMembers.length}`, null],
+                ["verified", `已验证 ${verifiedCount}`, "text-emerald-400 border-emerald-400/40 bg-emerald-400/10"],
+                ["unbound", `未绑定用户 ${unboundCount}`, "text-text-muted border-border-default"],
+              ] as const
+            ).map(([key, label, activeCls]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setBindFilter(key)}
+                className={`px-2 py-1 rounded border transition-colors ${
+                  bindFilter === key
+                    ? activeCls ?? "text-wow-gold border-wow-gold/50 bg-wow-gold/10"
+                    : "text-text-muted border-border-default hover:text-text-secondary"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="搜索角色名 / 服务器 / 职业"
+              placeholder="搜索角色名 / 服务器 / 职业 / 站内用户名"
               className="w-full pl-10 pr-4 py-2 bg-bg-secondary border border-border-default rounded text-text-primary placeholder-text-muted focus:border-wow-gold focus:outline-none"
             />
           </div>
@@ -256,6 +301,7 @@ export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
                 <thead className="bg-bg-secondary/60 text-text-muted">
                   <tr>
                     <th className="text-left px-4 py-2 font-normal">角色名</th>
+                    <th className="text-left px-4 py-2 font-normal">站内用户</th>
                     <th className="text-left px-4 py-2 font-normal">服务器</th>
                     <th className="text-left px-4 py-2 font-normal">职业</th>
                     <th className="text-left px-4 py-2 font-normal">专精</th>
@@ -270,6 +316,25 @@ export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
                       className="border-t border-border-default hover:bg-bg-card/40"
                     >
                       <td className="px-4 py-2 text-text-primary">{m.characterName}</td>
+                      <td className="px-4 py-2">
+                        {m.verified ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-xs px-1.5 py-0.5 rounded border text-emerald-400 border-emerald-400/40 bg-emerald-400/10">
+                              已验证
+                            </span>
+                            <span className="text-text-secondary">
+                              {m.user?.name || m.user?.email || "—"}
+                            </span>
+                            {m.boundCount > 1 && (
+                              <span className="text-xs text-text-muted">
+                                +{m.boundCount - 1}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-text-muted">未绑定用户</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-text-muted">{m.realmTitle}</td>
                       <td className="px-4 py-2 text-text-secondary">{m.className ?? "-"}</td>
                       <td className="px-4 py-2 text-text-muted">{m.specName ?? "-"}</td>

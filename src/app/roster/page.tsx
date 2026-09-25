@@ -15,7 +15,9 @@ async function getRosterData() {
   try {
     const [characters, users] = await Promise.all([
       prisma.character.findMany({
-        where: { isPublic: true },
+        // userId 非空也要卡：正常删号会连带删角色，但万一有历史孤儿
+        // （userId = null）残留，绝不能出现在成员名册上。
+        where: { isPublic: true, userId: { not: null } },
         orderBy: [{ status: "asc" }, { name: "asc" }],
         select: {
           id: true, name: true, server: true, class: true, spec: true,

@@ -29,12 +29,24 @@ export async function GET() {
         orderBy: [{ rank: "asc" }, { characterName: "asc" }],
         take: 200,
         select: {
+          id: true,
           characterName: true,
           realmTitle: true,
           className: true,
           specName: true,
           specRole: true,
           rank: true,
+          // 绑定了站内角色 = 该成员已在站内「验证」过
+          characters: {
+            where: { isPublic: true },
+            select: {
+              id: true,
+              isMain: true,
+              user: {
+                select: { id: true, name: true, email: true, guildRank: true, role: true },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -48,7 +60,32 @@ export async function GET() {
         accessKeySet: !!cfg.accessKey,
       },
       ...info,
-      members: sample,
+      // 标记：绑定了站内用户 = 已验证；否则 = 未绑定用户
+      members: sample.map((m) => {
+        const bound = m.characters.find((c) => c.isMain) ?? m.characters[0] ?? null;
+        return {
+          id: m.id,
+          characterName: m.characterName,
+          realmTitle: m.realmTitle,
+          className: m.className,
+          specName: m.specName,
+          specRole: m.specRole,
+          rank: m.rank,
+          /** 已经过 WTF 验证并绑定到站内用户 */
+          verified: m.characters.length > 0,
+          /** 名下挂了几个站内角色 */
+          boundCount: m.characters.length,
+          /** 主力角色（若有）—— 展示时优先 */
+          isMain: bound?.isMain ?? false,
+          user: bound?.user
+            ? {
+                name: bound.user.name,
+                email: bound.user.email,
+                guildRank: bound.user.guildRank,
+              }
+            : null,
+        };
+      }),
     });
   } catch (error) {
     console.error("[admin/guild-members] GET:", error);

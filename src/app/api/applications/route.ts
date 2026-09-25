@@ -102,6 +102,11 @@ export async function PATCH(req: NextRequest) {
             }`,
           },
         });
+        // ⚠ Character.userId 是可空 + ON DELETE SET NULL，**删用户不会删角色**，
+        //   留下的角色会变成「孤儿」（userId = null），但 isPublic 仍是 true ——
+        //   也就是说被驳回的人导入过的角色会继续挂在成员名册上公开可见。
+        //   所以这里显式先删角色，再删账号。
+        await tx.character.deleteMany({ where: { userId: targetUserId } });
         // Application 通过外键 ON DELETE CASCADE 一并清除
         await tx.user.delete({ where: { id: targetUserId } });
       } else {
