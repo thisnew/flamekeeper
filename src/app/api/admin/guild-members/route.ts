@@ -32,6 +32,7 @@ export async function GET() {
           id: true,
           characterName: true,
           realmTitle: true,
+          realmSlug: true,
           className: true,
           specName: true,
           specRole: true,
@@ -51,6 +52,17 @@ export async function GET() {
       }),
     ]);
 
+    // Raider.IO 返回的服务器是**英文 Title**（"Echo Ridge"），中文用户看的是
+    // 字典表里的 name（"回音山"）。用归一化后的 slug 反查一次，别在页面上显示英文。
+    const realmSlugs = [...new Set(sample.map((m) => m.realmSlug))];
+    const realmRows = realmSlugs.length
+      ? await prisma.gameRealm.findMany({
+          where: { slug: { in: realmSlugs } },
+          select: { slug: true, name: true },
+        })
+      : [];
+    const realmNameBySlug = new Map(realmRows.map((r) => [r.slug, r.name]));
+
     return NextResponse.json({
       config: {
         region: cfg.region,
@@ -67,6 +79,8 @@ export async function GET() {
           id: m.id,
           characterName: m.characterName,
           realmTitle: m.realmTitle,
+          /** 中文服务器名（字典表），查不到时回退英文 Title */
+          realmName: realmNameBySlug.get(m.realmSlug) ?? m.realmTitle,
           className: m.className,
           specName: m.specName,
           specRole: m.specRole,

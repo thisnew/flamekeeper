@@ -1078,7 +1078,44 @@ GET /api/v1/guilds/profile
 > （`fields=gear,mythic_plus_scores_by_season,raid_progression`）逐角色查 ——
 > 注意这是**按角色**的调用，人多了会很快消耗配额，务必缓存落库。
 
-### 暴雪国服服务器接口
+### 游戏术语的中文化
+
+Raider.IO 返回的字段全是**英文**，展示给中文用户必须转换。
+统一走 `lib/wow-i18n.ts`，不要在组件里各写一份：
+
+| 字段 | API 原始值 | 显示 |
+| --- | --- | --- |
+| `character.class` | `Rogue` | **潜行者** |
+| `character.active_spec_name` | `Subtlety` | **敏锐** |
+| `character.active_spec_role` | `HEALING` | **治疗** |
+| `character.realm` | `Echo Ridge` | **回音山**（查服务器字典） |
+
+> ⚠️ **`active_spec_role` 实际是 `HEALING`，不是 `HEALER`。**
+> 早期只映射了 `HEALER`，导致**治疗职业在页面上显示原始英文 "HEALING"**。
+> 现在两个都收，且大小写不敏感。
+
+**专精重名**：`Protection`（战士/圣骑士）、`Holy`（牧师/圣骑士）、
+`Frost`（法师/死亡骑士）、`Restoration`（德鲁伊/萨满）在英文里重名 ——
+但**官方中文译名也相同**（都是 防护/神圣/冰霜/恢复），所以一张平表就够。
+若将来译名分化，用 `WOW_SPEC_LABELS_BY_CLASS`（键 `${职业}|${专精}`）覆盖。
+
+**未知值原样返回**而不是显示空白 —— 便于发现新数据，也兼容管理员手填的中文。
+
+### 服务器名归一：撇号是个坑
+
+```
+Al'ar              中文写法 凤凰之神     官方 slug  alar
+The Master's Glaive 中文写法 主宰之剑    官方 slug  the-masters-glaive
+```
+
+`canonicalRealmSlug()` 的回退分支最初**只把空格/下划线转连字符，撇号保留** ——
+于是 `Al'ar` 得到 `al-ar`，与字典的 `alar` 对不上。
+
+**这不只是显示问题**：该函数**同时用于 WTF ↔ 公会名单匹配**，
+对不上意味着**这两个服务器的公会成员会被误判成「非公会成员」而拒绝导入**。
+现在回退会把撇号**删掉**而非转连字符，并按暴雪 slug 约定（`^[a-z0-9-]+$`）归一。
+
+
 
 ```
 GET https://webapi.blizzard.cn/wow-armory-server/api/server_status?server_type=wow_mainline

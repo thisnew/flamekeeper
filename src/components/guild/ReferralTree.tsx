@@ -5,6 +5,7 @@ import {
   ChevronRight, Crown, Shield, Swords, Flame, User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { classSpecLabel } from "@/lib/wow-i18n";
 
 export interface TreeNode {
   id: string;
@@ -186,8 +187,8 @@ function TreeItem({
             {node.character && (
               <span className="text-xs text-text-muted truncate">
                 {node.character.name}
-                {[node.character.class, node.character.spec].filter(Boolean).length > 0 &&
-                  ` · ${[node.character.class, node.character.spec].filter(Boolean).join(" · ")}`}
+                {classSpecLabel(node.character.class, node.character.spec) &&
+                  ` · ${classSpecLabel(node.character.class, node.character.spec)}`}
               </span>
             )}
 

@@ -106,7 +106,26 @@ function str(v: unknown, max = 64): string | null {
 export async function canonicalRealmSlug(input: string): Promise<string> {
   const found = await resolveRealm(input);
   if (found) return found.slug;
-  return input.trim().toLowerCase().replace(/[\s_]+/g, "-");
+
+  // 字典查不到时的回退：按暴雪 slug 约定归一（slug 只含 ^[a-z0-9-]+$）。
+  //
+  // ⚠ **撇号必须删掉，不能转成连字符**：
+  //   字典里 Al'ar = 凤凰之神，slug 是 `alar`；
+  //   若把撇号转连字符会得到 `al-ar`，与 `alar` 对不上。
+  //   后果比显示错更严重 —— 这个函数**同时用于 WTF↔公会名单匹配**，
+  //   对不上意味着这两个服务器的公会成员会被误判成「非公会成员」而拒绝导入。
+  const slug = input
+    .trim()
+    .toLowerCase()
+    .replace(/['\u2018\u2019`\u00B4]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (!slug) return input.trim().toLowerCase();
+
+  // 用归一后的 slug 再查一次字典，尽量拿到官方 slug（比如大小写/别名差异）
+  const bySlug = await resolveRealm(slug);
+  return bySlug ? bySlug.slug : slug;
 }
 
 /**

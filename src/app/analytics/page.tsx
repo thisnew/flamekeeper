@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { classLabel } from "@/lib/wow-i18n";
 import { requireMember } from "@/lib/page-guard";
 import { BarChart3, Users, Sword, Shield, TrendingUp, Heart } from "lucide-react";
 import {
@@ -27,9 +28,10 @@ async function getAnalytics() {
       : 0;
 
     // WTF 导入的角色没有职业/职能信息，统一归到「未知」
+    // 归类键用**中文**：图表是给人看的，别出现 "Rogue" 这种英文
     const classMap: Record<string, number> = {};
     characters.forEach((c) => {
-      const key = c.class || "未知";
+      const key = classLabel(c.class) ?? "未知";
       classMap[key] = (classMap[key] || 0) + 1;
     });
     const classData: ClassDatum[] = Object.entries(classMap).map(([name, value]) => ({ name, value }));

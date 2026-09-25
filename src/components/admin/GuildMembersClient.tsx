@@ -8,6 +8,8 @@ type MemberRow = {
   id: string;
   characterName: string;
   realmTitle: string;
+  /** 中文服务器名（字典表）；查不到时等于 realmTitle */
+  realmName: string;
   className: string | null;
   specName: string | null;
   specRole: string | null;
@@ -30,11 +32,7 @@ type Payload = {
   members: MemberRow[];
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  TANK: "坦克",
-  HEALER: "治疗",
-  DPS: "输出",
-};
+import { classLabel, specLabel, roleLabel } from "@/lib/wow-i18n";
 
 export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
   const [data, setData] = useState<Payload | null>(null);
@@ -135,6 +133,11 @@ export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
       m.characterName.toLowerCase().includes(n) ||
       m.realmTitle.toLowerCase().includes(n) ||
       (m.className ?? "").toLowerCase().includes(n) ||
+      (m.specName ?? "").toLowerCase().includes(n) ||
+      // 中文也要能搜：用户打的是「潜行者」「敏锐」，不是 "Rogue"
+      (classLabel(m.className) ?? "").toLowerCase().includes(n) ||
+      (specLabel(m.specName, m.className) ?? "").toLowerCase().includes(n) ||
+      (roleLabel(m.specRole) ?? "").toLowerCase().includes(n) ||
       // 也按站内用户名 / 邮箱搜，方便「这个人在公会名单里吗」
       (m.user?.name ?? "").toLowerCase().includes(n) ||
       (m.user?.email ?? "").toLowerCase().includes(n)
@@ -335,11 +338,15 @@ export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
                           <span className="text-xs text-text-muted">未绑定用户</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-text-muted">{m.realmTitle}</td>
-                      <td className="px-4 py-2 text-text-secondary">{m.className ?? "-"}</td>
-                      <td className="px-4 py-2 text-text-muted">{m.specName ?? "-"}</td>
+                      <td className="px-4 py-2 text-text-muted">{m.realmName}</td>
+                      <td className="px-4 py-2 text-text-secondary">
+                        {classLabel(m.className) ?? "-"}
+                      </td>
                       <td className="px-4 py-2 text-text-muted">
-                        {m.specRole ? ROLE_LABELS[m.specRole] ?? m.specRole : "-"}
+                        {specLabel(m.specName, m.className) ?? "-"}
+                      </td>
+                      <td className="px-4 py-2 text-text-muted">
+                        {roleLabel(m.specRole) ?? "-"}
                       </td>
                       <td className="px-4 py-2 text-text-muted">{m.rank ?? "-"}</td>
                     </tr>

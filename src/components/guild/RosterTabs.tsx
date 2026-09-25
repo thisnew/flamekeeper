@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { List, Network, Shield } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { CLASS_COLORS } from "@/lib/utils";
+import { cn, CLASS_COLORS } from "@/lib/utils";
+import { classLabel, specLabel } from "@/lib/wow-i18n";
 import ReferralTree, { type TreeNode } from "@/components/guild/ReferralTree";
 
 interface RosterCharacter {
@@ -88,9 +88,11 @@ export default function RosterTabs({
                         <span className="font-bold text-text-primary">{char.name}</span>
                       </td>
                       <td className={`py-3 px-4 font-medium ${CLASS_COLORS[char.class] || "text-text-secondary"}`}>
-                        {char.class}
+                        {classLabel(char.class) ?? "未设置"}
                       </td>
-                      <td className="py-3 px-4 text-text-muted">{char.spec}</td>
+                      <td className="py-3 px-4 text-text-muted">
+                        {specLabel(char.spec, char.class) ?? "未设置"}
+                      </td>
                       <td className="py-3 px-4">
                         <span
                           className={cn(

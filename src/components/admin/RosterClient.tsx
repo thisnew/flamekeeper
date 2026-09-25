@@ -1,5 +1,7 @@
 "use client";
 
+import { classSpecLabel } from "@/lib/wow-i18n";
+
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Loader2, Trash2, Plus } from "lucide-react";
@@ -167,7 +169,7 @@ export default function RosterClient({ initial }: { initial: Character[] }) {
               <tr key={c.id} className="border-b border-border-default hover:bg-bg-card/30">
                 <td className="py-2 px-3 font-bold text-text-primary">{c.name}</td>
                 <td className="py-2 px-3 text-text-muted">
-                  {[c.class, c.spec].filter(Boolean).join(" · ") || "未设置"}
+                  {classSpecLabel(c.class, c.spec) ?? "未设置"}
                 </td>
                 <td className="py-2 px-3">{ROLES.find((r) => r.value === c.role)?.label || "未设置"}</td>
                 <td className="py-2 px-3 text-wow-gold font-mono">{c.itemLevel || '-'}</td>
