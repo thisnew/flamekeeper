@@ -24,12 +24,6 @@ const STATUS_INFO: Record<string, { icon: any; label: string; color: string; des
     color: "text-wow-gold",
     desc: "你的申请已提交，已入会的公会成员均可为你审批，请耐心等待。",
   },
-  NEEDS_INFO: {
-    icon: AlertCircle,
-    label: "需补充信息",
-    color: "text-wow-orange",
-    desc: "官员希望你补充一些资料，请联系审批人或重新提交申请。",
-  },
   REJECTED: {
     icon: XCircle,
     label: "已拒绝",

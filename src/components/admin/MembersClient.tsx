@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Search, Users } from "lucide-react";
 import toast from "react-hot-toast";
+import { maskEmail, displayName } from "@/lib/privacy";
 import {
   GUILD_RANKS,
   GUILD_RANK_LABELS,
@@ -122,7 +123,7 @@ export default function MembersClient({
                       {GUILD_RANK_LABELS[m.guildRank as GuildRank] ?? m.guildRank}
                     </span>
                   </div>
-                  <div className="text-xs text-text-muted">{m.email}</div>
+                  <div className="text-xs text-text-muted">{maskEmail(m.email)}</div>
                 </div>
 
                 <div className="text-xs text-text-muted">
@@ -132,7 +133,7 @@ export default function MembersClient({
                 <div className="text-xs text-text-muted">
                   引荐人：
                   <span className="text-text-secondary">
-                    {referrer ? referrer.name || referrer.email : "无（根节点）"}
+                    {referrer ? displayName(referrer) : "无（根节点）"}
                   </span>
                 </div>
 
@@ -168,7 +169,7 @@ export default function MembersClient({
                         .filter((x) => x.id !== m.id)
                         .map((x) => (
                           <option key={x.id} value={x.id}>
-                            {x.name || x.email}
+                            {displayName(x)}
                           </option>
                         ))}
                     </select>

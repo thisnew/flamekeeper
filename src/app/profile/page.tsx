@@ -32,7 +32,6 @@ const STATUS_LABELS: Record<string, string> = {
   PENDING_APPROVAL: "待审批",
   APPROVED: "已通过",
   REJECTED: "已拒绝",
-  NEEDS_INFO: "需补充信息",
 };
 
 /**
@@ -127,18 +126,10 @@ export default async function ProfilePage() {
                   </span>
                   <span
                     className={`text-xs ${
-                      a.status === "REJECTED"
-                        ? "text-wow-red"
-                        : a.status === "NEEDS_INFO"
-                          ? "text-wow-orange"
-                          : "text-wow-gold"
+                      a.status === "REJECTED" ? "text-wow-red" : "text-wow-gold"
                     }`}
                   >
-                    {a.status === "PENDING"
-                      ? "待审批"
-                      : a.status === "REJECTED"
-                        ? "已拒绝"
-                        : "需补充信息"}
+                    {a.status === "REJECTED" ? "已拒绝" : "待审批"}
                   </span>
                 </div>
                 <div className="text-xs text-text-muted mt-1">

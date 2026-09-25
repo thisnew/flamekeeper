@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { displayName } from "@/lib/privacy";
 const CATEGORY_LABELS: Record<string, string> = {
   RAID: "团本", MPLUS: "大秘境", PVP: "PVP", UI: "界面美化",
   CLASS: "职业专精", WEAKAURA: "WeakAuras", MACRO: "宏命令", TOOL: "工具",
@@ -174,7 +175,7 @@ export default function ToolsTabs({
                       )}
                       <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
                         <span>{new Date(share.createdAt).toLocaleDateString("zh-CN")}</span>
-                        <span>· {share.author.name || share.author.email}</span>
+                        <span>· {displayName(share.author)}</span>
                         {share.attachmentName && (
                           <span className="flex items-center gap-1 text-wow-blue-light">
                             <Paperclip className="w-3 h-3" />

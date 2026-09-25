@@ -7,6 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import { classSpecLabel } from "@/lib/wow-i18n";
 
+import { displayName } from "@/lib/privacy";
 export interface TreeNode {
   id: string;
   name: string;
@@ -177,7 +178,7 @@ function TreeItem({
             <RoleIcon className={cn("w-4 h-4 shrink-0", meta.cls.split(" ")[0])} />
 
             <span className="font-bold text-text-primary truncate" style={{ color: classColor }}>
-              {node.name || node.email}
+              {displayName(node)}
             </span>
 
             <span className={cn("text-[10px] px-1.5 py-0.5 rounded border", meta.cls)}>

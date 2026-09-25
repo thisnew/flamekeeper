@@ -22,6 +22,13 @@ COPY . .
 ARG NEXT_PUBLIC_APP_URL=https://www.h83c4578f.nyat.app:22247
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
+# Commit hash shown in the footer. `COPY . .` runs after .git is excluded by
+# .dockerignore, so the builder cannot run `git rev-parse` -- CI passes this in
+# via --build-arg (see .github/workflows/docker-publish.yml). Left unset it
+# falls back to "unknown" rather than showing a stale or invented value.
+ARG GIT_SHA=
+ENV GIT_SHA=${GIT_SHA}
+
 # Generate Prisma client, emit the PostgreSQL DDL, then build
 RUN npx prisma generate
 RUN npx prisma migrate diff \

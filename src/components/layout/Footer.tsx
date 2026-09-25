@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { Flame, Heart } from "lucide-react";
 import { isMemberOrAboveRole } from "@/lib/roles";
+import { getPublicSiteSettings } from "@/lib/site-settings";
 
 interface SessionUser {
   id?: string;
@@ -10,9 +11,18 @@ interface SessionUser {
   status?: string;
 }
 
-export default function Footer({ user }: { user: SessionUser | null }) {
+/**
+ * 页脚 —— 服务端组件。
+ *
+ * 标语与公会名取自**站点设置**（`lib/site-settings.ts`，与后台「系统设置」同一份），
+ * 不再硬编码 —— 之前后台改了标语，页脚纹丝不动。
+ */
+export default async function Footer({ user }: { user: SessionUser | null }) {
   // Member-only links require an approved member role, not just a session
   const isMember = isMemberOrAboveRole(user?.role);
+  const site = await getPublicSiteSettings();
+  // 构建期注入的版本号，见 next.config.ts 的 resolveGitSha()
+  const gitSha = process.env.NEXT_PUBLIC_GIT_SHA || "unknown";
 
   return (
     <footer className="relative z-10 border-t border-border-gold bg-bg-secondary/50">
@@ -25,13 +35,13 @@ export default function Footer({ user }: { user: SessionUser | null }) {
           <div className="md:col-span-1">
             <div className="flex items-center gap-2 mb-3">
               <Flame className="w-6 h-6 text-wow-orange" />
-              <span className="font-display font-bold text-lg text-wow-gold">ETERNAL FLAME</span>
+              <span className="font-display font-bold text-lg text-wow-gold">
+                {site.guild_name}
+              </span>
             </div>
-            <p className="text-sm text-text-muted leading-relaxed">
-              薪火不灭，荣耀永燃
-            </p>
+            <p className="text-sm text-text-muted leading-relaxed">{site.footer_tagline}</p>
             <p className="text-xs text-text-muted mt-2">
-              © {new Date().getFullYear()} Eternal Flame Guild. All rights reserved.
+              © {new Date().getFullYear()} {site.guild_name} Guild. All rights reserved.
             </p>
           </div>
 
@@ -69,14 +79,16 @@ export default function Footer({ user }: { user: SessionUser | null }) {
             </div>
           </div>
 
-          {/* Contact */}
+          {/* Contact —— 只留一个跳转入口。具体的 KOOK / 微信群在 /contact 页，
+              这里写死一份只会和那边不同步。 */}
           <div>
             <h4 className="font-display text-sm text-wow-gold mb-3 tracking-wider">联系方式</h4>
             <div className="flex flex-col gap-1.5">
-              <span className="text-sm text-text-muted">KOOK 频道：coming soon</span>
-              <span className="text-sm text-text-muted">微信群：联系官员加入</span>
-              <Link href="/contact" className="text-sm text-wow-gold hover:underline mt-1">
-                更多联系方式 →
+              <Link
+                href="/contact"
+                className="text-sm text-wow-gold hover:text-wow-gold-bright hover:underline"
+              >
+                查看更多联系方式 →
               </Link>
             </div>
           </div>
@@ -89,8 +101,13 @@ export default function Footer({ user }: { user: SessionUser | null }) {
           <span className="text-xs text-text-muted">
             本网站与暴雪娱乐及网易公司无任何关联。World of Warcraft® 是暴雪娱乐的注册商标。
           </span>
-          <span className="text-xs text-text-muted flex items-center gap-1">
-            Made with <Heart className="w-3 h-3 text-wow-red" /> by Eternal Flame Dev Team
+          <span className="text-xs text-text-muted flex items-center gap-3">
+            <span className="font-mono" title="当前部署的构建版本">
+              版本 {gitSha}
+            </span>
+            <span className="flex items-center gap-1">
+              Made with <Heart className="w-3 h-3 text-wow-red" /> by {site.guild_name} Dev Team
+            </span>
           </span>
         </div>
       </div>

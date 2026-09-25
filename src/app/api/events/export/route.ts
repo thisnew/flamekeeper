@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isOfficerOrAboveRole } from "@/lib/roles";
 
+import { maskEmail } from "@/lib/privacy";
 const STATUS_LABELS: Record<string, string> = {
   CONFIRMED: "正式",
   BENCH: "替补",
@@ -79,7 +80,8 @@ export async function GET(req: NextRequest) {
         toCsvRow([
           STATUS_LABELS[s.status] ?? s.status,
           s.user?.name ?? "",
-          s.user?.email ?? "",
+          // 导出的 CSV 会离开站点，**必须在数据层遮蔽** —— 它不经过任何 React 渲染
+          maskEmail(s.user?.email),
           s.attendance ? ATTENDANCE_LABELS[s.attendance] ?? s.attendance : "未标记",
           s.note ?? "",
           fmt(s.createdAt),

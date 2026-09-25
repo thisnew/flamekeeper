@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import SettingsClient from "@/components/admin/SettingsClient";
+import { PUBLIC_SITE_DEFAULTS } from "@/lib/site-settings";
 
 export const metadata: Metadata = { title: "设置 - 管理后台" };
 
@@ -20,16 +21,11 @@ export default async function AdminSettingsPage() {
   for (const s of rows) map[s.key] = s.value;
 
   const defaults: Record<string, string> = {
-    // general
-    site_title: "Eternal Flame | 守焰者",
-    site_description: "薪火不灭，荣耀永燃",
-    guild_name: "Eternal Flame",
-    guild_chinese_name: "守焰者",
-    guild_server: "",
-    guild_faction: "",
-    kook_invite_url: "",
+    // ---- 公开可见的站点信息：默认值来自 lib/site-settings.ts，
+    //      页脚与首页读的是同一份，避免后台改了而站点上没变 ----
+    ...PUBLIC_SITE_DEFAULTS,
+    // 后台专用（敏感，绝不走 getPublicSiteSettings）
     wechat_qr_image: "",
-    recruitment_status: "招募中",
     officer_emails: "",
     // 评论先审后发（"false" 关闭）
     comment_moderation: "true",

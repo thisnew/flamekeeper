@@ -63,12 +63,18 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { applicationId, action, note } = body as {
       applicationId: string;
-      action: "APPROVE" | "REJECT" | "NEEDS_INFO";
+      // ⚠ 已移除 NEEDS_INFO：入会申请只有「通过」和「驳回」两种处置。
+      //   曾经用过「要求补充信息」，但那个状态既要成员回站补充、又没有回填入口，
+      //   实际只会让申请卡住 —— 需要沟通时直接驳回或线下联系更干脆。
+      action: "APPROVE" | "REJECT";
       note?: string;
     };
 
     if (!applicationId || !action) {
       return NextResponse.json({ error: "参数缺失" }, { status: 400 });
+    }
+    if (action !== "APPROVE" && action !== "REJECT") {
+      return NextResponse.json({ error: "未知的审批操作" }, { status: 400 });
     }
 
     const application = await prisma.application.findUnique({
@@ -133,24 +139,6 @@ export async function PATCH(req: NextRequest) {
         await tx.character.deleteMany({ where: { userId: targetUserId } });
         // Application 通过外键 ON DELETE CASCADE 一并清除
         await tx.user.delete({ where: { id: targetUserId } });
-      } else {
-        await tx.application.update({
-          where: { id: applicationId },
-          data: { status: "NEEDS_INFO", officerNote: trimmedNote || null },
-        });
-        await tx.user.update({
-          where: { id: targetUserId },
-          data: { status: "NEEDS_INFO" },
-        });
-        await tx.auditLog.create({
-          data: {
-            userId: actor.id,
-            action: "APPLICATION_NEEDS_INFO",
-            detail: `要求 ${targetEmail} 补充信息（${appCode}）${
-              trimmedNote ? `：${trimmedNote}` : ""
-            }`,
-          },
-        });
       }
     });
 

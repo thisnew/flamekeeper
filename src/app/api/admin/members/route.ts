@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { isAdminRole, isOfficerOrAboveRole } from "@/lib/roles";
 import { guildRankLabel, isGuildRank } from "@/lib/guild-rank";
 
+import { maskEmail } from "@/lib/privacy";
 /**
  * 判断把 `userId` 的引荐人设为 `newReferrerId` 是否会形成环。
  *
@@ -62,7 +63,10 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ members });
+    // 他人邮箱遮蔽后再回传（后台成员列表）
+    return NextResponse.json({
+      members: members.map((m) => ({ ...m, email: maskEmail(m.email) })),
+    });
   } catch (error) {
     console.error("[admin/members] GET:", error);
     return NextResponse.json({ error: "获取成员列表失败" }, { status: 500 });

@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 
+import { displayName } from "@/lib/privacy";
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -75,7 +76,7 @@ export default async function ShareDetailPage({ params }: Props) {
             </span>
             <span className="flex items-center gap-1">
               <UserIcon className="w-3.5 h-3.5" />
-              {share.author.name || share.author.email}
+              {displayName(share.author)}
             </span>
           </div>
         </header>

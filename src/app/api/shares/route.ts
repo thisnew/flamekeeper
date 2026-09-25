@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { isMemberOrAboveRole, isOfficerOrAboveRole } from "@/lib/roles";
 import { generateSlug } from "@/lib/utils";
 
+import { maskEmail } from "@/lib/privacy";
 const SHARE_CATEGORY = "SHARING";
 
 // GET /api/shares — list published shares (newest first)
@@ -27,7 +28,13 @@ export async function GET(req: NextRequest) {
       include: { author: { select: { id: true, name: true, email: true, image: true } } },
     });
 
-    return NextResponse.json({ shares });
+    // 作者邮箱在**响应里就遮蔽** —— 它只是「没有昵称时的兜底显示」
+    return NextResponse.json({
+      shares: shares.map((s) => ({
+        ...s,
+        author: s.author ? { ...s.author, email: maskEmail(s.author.email) } : s.author,
+      })),
+    });
   } catch (error) {
     console.error("Shares GET:", error);
     return NextResponse.json({ error: "获取分享列表失败" }, { status: 500 });

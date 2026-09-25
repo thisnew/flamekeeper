@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { CheckCircle, XCircle, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { maskEmail, displayName } from "@/lib/privacy";
 interface Application {
   id: string;
   applicationCode: string;
@@ -24,7 +25,6 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING: { label: "待审批", color: "text-wow-gold" },
   APPROVED: { label: "已通过", color: "text-wow-green" },
   REJECTED: { label: "已拒绝", color: "text-wow-red" },
-  NEEDS_INFO: { label: "需补充信息", color: "text-wow-orange" },
 };
 
 export default function ApplicationsClient({
@@ -38,7 +38,7 @@ export default function ApplicationsClient({
   const [acting, setActing] = useState<string | null>(null);
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
 
-  const handleAction = async (id: string, action: "APPROVE" | "REJECT" | "NEEDS_INFO") => {
+  const handleAction = async (id: string, action: "APPROVE" | "REJECT") => {
     setActing(id);
     try {
       const res = await fetch("/api/applications", {
@@ -52,7 +52,7 @@ export default function ApplicationsClient({
         setList((prev) =>
           prev.map((a) =>
             a.id === id
-              ? { ...a, status: action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "NEEDS_INFO", officerNote: noteInputs[id] || null }
+              ? { ...a, status: action === "APPROVE" ? "APPROVED" : "REJECTED", officerNote: noteInputs[id] || null }
               : a
           )
         );
@@ -106,7 +106,7 @@ export default function ApplicationsClient({
                   <span className="font-bold text-lg text-text-primary">
                     {app.user.name || "（未设昵称）"}
                   </span>
-                  <span className="text-xs text-text-muted">{app.user.email}</span>
+                  <span className="text-xs text-text-muted">{maskEmail(app.user.email)}</span>
                   <span className={`text-sm font-bold ${status.color}`}>● {status.label}</span>
                   {!app.user.emailVerified && (
                     <span className="text-xs px-2 py-0.5 bg-wow-orange/10 text-wow-orange border border-wow-orange/30 rounded">
@@ -115,7 +115,7 @@ export default function ApplicationsClient({
                   )}
                   {canDelete && (
                     <button
-                      onClick={() => handleDelete(app.id, app.user.name || app.user.email)}
+                      onClick={() => handleDelete(app.id, displayName(app.user))}
                       disabled={acting === app.id}
                       className="ml-auto flex items-center gap-1 px-2.5 py-1 text-xs border border-wow-red/30 text-wow-red rounded hover:bg-wow-red/10 transition-colors disabled:opacity-50"
                       title="删除该申请记录"
@@ -127,7 +127,7 @@ export default function ApplicationsClient({
                 </div>
                 <div className="text-sm text-text-muted space-y-1">
                   {/* 注册只填昵称，不再有角色/职业/装等等游戏信息 */}
-                  <p>邮箱：{app.user.email}</p>
+                  <p>邮箱：{maskEmail(app.user.email)}</p>
                   <p className="text-xs mt-2">申请编号：<code className="text-wow-gold">{app.applicationCode}</code></p>
                   <p className="text-xs">提交时间：{new Date(app.createdAt).toLocaleString("zh-CN")}</p>
                   {app.officerNote && (
@@ -159,15 +159,6 @@ export default function ApplicationsClient({
                     >
                       {acting === app.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
                       通过
-                    </button>
-                    <button
-                      onClick={() => handleAction(app.id, "NEEDS_INFO")}
-                      disabled={acting === app.id}
-                      className={cn("py-2 text-xs font-bold rounded flex items-center justify-center gap-1 transition-colors",
-                        "bg-wow-orange/20 text-wow-orange border border-wow-orange/40 hover:bg-wow-orange/30")}
-                    >
-                      <AlertTriangle className="w-3 h-3" />
-                      补资料
                     </button>
                     <button
                       onClick={() => handleAction(app.id, "REJECT")}

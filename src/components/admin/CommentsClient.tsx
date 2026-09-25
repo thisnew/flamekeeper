@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Check, ExternalLink, Loader2, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { maskEmail } from "@/lib/privacy";
 export type AdminComment = {
   id: string;
   content: string;
@@ -119,7 +120,7 @@ export default function CommentsClient({ initial }: { initial: AdminComment[] })
                 <span className="text-text-primary font-semibold text-sm">
                   {c.authorName}
                 </span>
-                <span className="text-text-muted">{c.authorEmail}</span>
+                <span className="text-text-muted">{maskEmail(c.authorEmail)}</span>
                 <span className="text-text-muted">· {c.createdAtLabel}</span>
                 <span
                   className={`px-1.5 py-0.5 rounded border ${

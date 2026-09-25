@@ -13,6 +13,12 @@ interface Settings {
   guild_chinese_name: string;
   guild_server: string;
   guild_faction: string;
+  /** 页脚标语 */
+  footer_tagline: string;
+  /** 首页主标语 */
+  home_tagline: string;
+  /** 首页简介段落 */
+  home_intro: string;
   kook_invite_url: string;
   wechat_qr_image: string;
   recruitment_status: string;
@@ -83,6 +89,14 @@ export default function SettingsClient({ initial }: { initial: Settings }) {
     { key: "guild_chinese_name", label: "公会中文名", placeholder: "守焰者" },
     { key: "guild_server", label: "服务器", placeholder: "燃烧之刃" },
     { key: "guild_faction", label: "阵营", placeholder: "Alliance / Horde" },
+    { key: "footer_tagline", label: "页脚标语", placeholder: "薪火不灭，荣耀永燃" },
+    { key: "home_tagline", label: "首页主标语", placeholder: "薪火不灭，荣耀永燃" },
+    {
+      key: "home_intro",
+      label: "首页简介",
+      placeholder: "一个以团队副本为核心、注重成员成长的魔兽世界公会。",
+      help: "显示在首页主标语下方",
+    },
     { key: "kook_invite_url", label: "KOOK 邀请链接", placeholder: "https://kook.top/...", type: "url" },
     { key: "wechat_qr_image", label: "微信群二维码 URL", placeholder: "https://...", type: "url", help: "上传到图床后粘贴链接" },
     { key: "officer_emails", label: "官员邮箱", placeholder: "flamekeeper_admin@163.com,officer2@..." },

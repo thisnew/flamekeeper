@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { Shield, Flame, Swords, Crown, MapPin, Calendar, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
+import { displayName } from "@/lib/privacy";
 export const metadata: Metadata = {
   title: "公会介绍",
   description: "了解 Eternal Flame 公会的历史、理念、管理层与团队成就。薪火不灭，荣耀永燃。",
@@ -30,7 +31,8 @@ async function getRankHolders() {
     const map: Record<string, string[]> = {};
     for (const u of users) {
       const key = u.guildRank || "MEMBER";
-      (map[key] ||= []).push(u.name || u.email);
+      // 他人邮箱要遮蔽中间段 —— 这是公开页面
+      (map[key] ||= []).push(displayName(u));
     }
     return map;
   } catch {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Clock, Download, Loader2, MapPin, UserCheck, Users } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { displayName } from "@/lib/privacy";
 export type SignupRow = {
   id: string;
   userId: string;
@@ -267,7 +268,7 @@ export default function EventSignupPanel({
                       <span className="text-text-muted text-xs w-5">
                         {group.label === "替补队列" ? `${i + 1}.` : ""}
                       </span>
-                      <span>{s.user.name || s.user.email}</span>
+                      <span>{displayName(s.user)}</span>
                       {s.userId === currentUserId && (
                         <span className="text-xs text-wow-gold">（我）</span>
                       )}

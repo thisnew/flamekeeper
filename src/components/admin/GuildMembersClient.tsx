@@ -34,6 +34,7 @@ type Payload = {
 
 import { classLabel, specLabel, roleLabel } from "@/lib/wow-i18n";
 
+import { displayName } from "@/lib/privacy";
 export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
   const [data, setData] = useState<Payload | null>(null);
   const [q, setQ] = useState("");
@@ -326,7 +327,7 @@ export default function GuildMembersClient({ canEdit }: { canEdit: boolean }) {
                               已验证
                             </span>
                             <span className="text-text-secondary">
-                              {m.user?.name || m.user?.email || "—"}
+                              {displayName(m.user)}
                             </span>
                             {m.boundCount > 1 && (
                               <span className="text-xs text-text-muted">

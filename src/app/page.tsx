@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { isMemberOrAboveRole } from "@/lib/roles";
 import { formatDate } from "@/lib/utils";
 
+import { getPublicSiteSettings } from "@/lib/site-settings";
 async function getHomeData() {
   try {
     const [posts, characters, raidProgress] = await Promise.all([
@@ -28,9 +29,11 @@ async function getHomeData() {
 }
 
 export default async function HomePage() {
-  const [{ posts, memberCount, raidProgress }, session] = await Promise.all([
+  // 站点信息与后台「系统设置」同源 —— 改了后台，首页标语/简介/公会名跟着变
+  const [{ posts, memberCount, raidProgress }, session, site] = await Promise.all([
     getHomeData(),
     auth(),
+    getPublicSiteSettings(),
   ]);
   const isMember = isMemberOrAboveRole((session?.user as any)?.role);
 
@@ -58,23 +61,22 @@ export default async function HomePage() {
           </div>
 
           <h1 className="font-display text-4xl sm:text-5xl md:text-7xl font-black text-wow-gold text-glow tracking-wider mb-4">
-            ETERNAL FLAME
+            {site.guild_name.toUpperCase()}
           </h1>
 
           <div className="flex items-center justify-center gap-4 mb-6">
             <div className="h-px w-12 bg-gradient-to-r from-transparent to-wow-gold/50" />
             <span className="font-display text-xl sm:text-2xl text-text-secondary tracking-widest">
-              守焰者
+              {site.guild_chinese_name}
             </span>
             <div className="h-px w-12 bg-gradient-to-l from-transparent to-wow-gold/50" />
           </div>
 
           <p className="text-lg sm:text-xl text-text-secondary mb-2 font-light">
-            薪火不灭，荣耀永燃
+            {site.home_tagline}
           </p>
           <p className="text-sm text-text-muted max-w-lg mx-auto mb-10">
-            一个以团队副本为核心、注重成员成长的魔兽世界公会。
-            我们是火焰的守护者，也是彼此的战友。
+            {site.home_intro}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

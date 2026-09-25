@@ -71,6 +71,7 @@ jobs:
           # NEXT_PUBLIC_APP_URL is read at build time (metadataBase, OG).
           build-args: |
             NEXT_PUBLIC_APP_URL=${{ env.PUBLIC_URL }}
+            GIT_SHA=${{ github.sha }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE }}:git-${{ github.sha }}

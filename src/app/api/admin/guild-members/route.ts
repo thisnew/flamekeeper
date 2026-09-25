@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isAdminRole, isOfficerOrAboveRole } from "@/lib/roles";
 import { encryptSecret, isEncrypted } from "@/lib/secrets";
+import { maskEmail } from "@/lib/privacy";
 import {
   RIO_DEFAULTS,
   RIO_SETTING_KEYS,
@@ -94,7 +95,7 @@ export async function GET() {
           user: bound?.user
             ? {
                 name: bound.user.name,
-                email: bound.user.email,
+                email: maskEmail(bound.user.email),
                 guildRank: bound.user.guildRank,
               }
             : null,

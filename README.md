@@ -1186,9 +1186,23 @@ GET https://webapi.blizzard.cn/wow-armory-server/api/server_status?server_type=w
   注意：目前**没有**统一的响应包装函数，各路由手写，形状靠约定而非类型强制。
 - **需要落库的密钥必须加密**：走 `lib/secrets.ts`（实现在 `prisma/secrets.mjs`），
   不要明文写进 `Setting` 表。
+- **站点文案必须可配置**：页脚标语、首页标语/简介、公会名等走
+  `lib/site-settings.ts` 的 `getPublicSiteSettings()`，默认值定义在
+  `PUBLIC_SITE_DEFAULTS`（**唯一一份**），后台设置页与站点渲染共用。
+  ⚠ 不要在组件里硬编码 —— 之前页脚把「薪火不灭，荣耀永燃」写死在 JSX 里，
+  后台改了 `site_description` 也纹丝不动。
+  `PUBLIC_SITE_KEYS` 是白名单，**SMTP 密码等敏感键永远不在其中**。
+- **他人邮箱一律遮蔽**：展示或回传别人的邮箱时用 `lib/privacy.ts` 的
+  `maskEmail()` / `displayName()`（`maskEmail` 是**幂等**的，两层调用安全）。
+  凡是 `x.name || x.email` 这种写法，都应改成 `displayName(x)`。
+  自己的邮箱（个人中心、右上角、注册流程）不遮蔽。
+  ⚠ CSV 导出也必须遮 —— 它不经过任何 React 渲染，只在数据层能拦住。
 - **schema 变更流程**：改 `prisma/schema.prisma` → `npm run db:generate`。
   建表/同步由 `predev` 与容器 `CMD` 自动完成，**不要手写 DDL**
   （`prisma/init.sql` 是构建期生成物，不入库）。
+- **测试不要动真实敏感数据**：跑集成脚本时，新建**只属于测试的临时键/记录**
+  来验证边界，**绝不 upsert 再删真实配置项**（例如 `smtp_pass`）——
+  那等于破坏用户配置且无法恢复。
 
 ---
 

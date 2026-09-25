@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSlug } from "@/lib/utils";
 
+import { maskEmail } from "@/lib/privacy";
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -25,7 +26,11 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({
-      posts,
+      // 作者邮箱遮蔽后再回传（它只是没昵称时的兜底显示）
+      posts: posts.map((p) => ({
+        ...p,
+        author: p.author ? { ...p.author, email: maskEmail(p.author.email) } : p.author,
+      })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {

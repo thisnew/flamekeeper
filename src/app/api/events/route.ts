@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateSlug } from "@/lib/utils";
 
+import { maskEmail } from "@/lib/privacy";
 export async function GET() {
   try {
     const events = await prisma.event.findMany({
       orderBy: { startTime: "asc" },
       include: { signups: { include: { user: { select: { id: true, name: true, email: true } } } } },
     });
-    return NextResponse.json({ events });
+    // 他人邮箱在**响应里就遮蔽**，别指望每个消费方都记得遮
+    return NextResponse.json({
+      events: events.map((e) => ({
+        ...e,
+        signups: e.signups.map((s) => ({
+          ...s,
+          user: s.user ? { ...s.user, email: maskEmail(s.user.email) } : s.user,
+        })),
+      })),
+    });
   } catch (error) {
     console.error("Events GET:", error);
     return NextResponse.json({ error: "获取活动失败" }, { status: 500 });
