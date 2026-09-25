@@ -206,6 +206,11 @@ model Character {
   user          User?        @relation(fields: [userId], references: [id])
   guildMember   GuildMember? @relation(fields: [guildMemberId], references: [id], onDelete: SetNull)
 
+  /// ⚠ **同一服务器的角色名全站唯一** —— 一个魔兽角色在游戏里只属于一个人，
+  /// 不允许两个人各自认领同一个角色（既会重复统计，也给冒充留口子）。
+  /// 注意 `server` 存的是字典里的**中文规范名**：若「回音山」与「Echo Ridge」
+  /// 并存，唯一性就会被绕过，所以写入前统一经 `canonicalRealmName()` 归一。
+  @@unique([server, name])
   @@index([userId, sortOrder])
   @@index([guildMemberId])
   @@index([userId, isMain])

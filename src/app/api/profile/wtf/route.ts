@@ -15,6 +15,7 @@ import {
   saveWtfFile,
 } from "@/lib/wtf-storage";
 import { canonicalRealmSlug, matchGuildMembersBulk } from "@/lib/raiderio";
+import { canonicalRealmName } from "@/lib/realms";
 
 /** 名称类字段的统一清洗：去空白、去控制字符、限长。 */
 function cleanName(v: unknown, max = 64): string {
@@ -295,24 +296,79 @@ export async function POST(req: NextRequest) {
     });
     const existingCharKeys = new Set(existingChars.map((c) => `${c.server}/${c.name}`));
 
+    // 服务器名归一到**字典里的中文规范名**。
+    // `Character` 有 @@unique([server, name])，若这里写「回音山」而别处写
+    // "Echo Ridge"，唯一约束就会被绕过 —— 归一之后才真正唯一。
+    const normalized = await Promise.all(
+      guildCharacters.map(async (c) => ({
+        ...c,
+        server: await canonicalRealmName(c.realm),
+      }))
+    );
+
+    // ---- 全站唯一：别人已经认领的同名角色 ----
+    // 一个魔兽角色在游戏里只属于一个人，两个人各自认领同一个会重复统计、也给冒充留口子。
+    const takenRows = normalized.length
+      ? await prisma.character.findMany({
+          where: {
+            userId: { not: user.id },
+            OR: normalized.map((c) => ({ server: c.server, name: c.name })),
+          },
+          select: {
+            server: true,
+            name: true,
+            user: { select: { name: true, email: true } },
+          },
+        })
+      : [];
+    const takenBy = new Map(
+      takenRows.map((r) => [
+        `${r.server}/${r.name}`,
+        r.user?.name || r.user?.email || "其他成员",
+      ])
+    );
+
     const charsToCreate: {
       name: string;
       server: string;
       accountName: string;
       guildMemberId: string;
     }[] = [];
+    const conflicts: { name: string; server: string; owner: string }[] = [];
     const seen = new Set<string>();
     // 只处理通过公会比对的角色（非公会角色在上一步已被拦掉）
-    for (const c of guildCharacters) {
-      const key = `${c.realm}/${c.name}`;
+    for (const c of normalized) {
+      const guildKey = `${c.realm}/${c.name}`;
+      const key = `${c.server}/${c.name}`;
       if (existingCharKeys.has(key) || seen.has(key)) continue;
+      const owner = takenBy.get(key);
+      if (owner) {
+        conflicts.push({ name: c.name, server: c.server, owner });
+        continue;
+      }
       seen.add(key);
       charsToCreate.push({
         name: c.name,
-        server: c.realm,
+        server: c.server,
         accountName: c.accountName,
-        guildMemberId: memberIdByKey.get(`${c.realm}/${c.name}`)!,
+        guildMemberId: memberIdByKey.get(guildKey)!,
       });
+    }
+
+    // 全部被人占了 —— 说清楚是谁占的，别让人以为「导入坏了」
+    if (charsToCreate.length === 0 && conflicts.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            `所选角色都已被其他成员认领，无法重复绑定：` +
+            conflicts
+              .map((c) => `${c.name}@${c.server}（${c.owner}）`)
+              .join("、") +
+            "。若确实是你本人的角色，请联系官员处理。",
+          conflicts,
+        },
+        { status: 409 }
+      );
     }
 
     if (existingChars.length + charsToCreate.length > WTF_MAX_CHARACTERS) {
@@ -395,12 +451,17 @@ export async function POST(req: NextRequest) {
       createdCharacters: result.created,
       newAccounts: newAccountNames.length,
       ignoredCharacters: ignoredCount,
+      /** 被其他成员认领、因而未导入的角色 */
+      conflicts,
       skipped,
-      message: retrieveOnly
-        ? `仅检索：录入 ${result.created} 个公会角色，**未在服务器保留任何文件**` +
-          (ignoredCount > 0 ? `（忽略 ${ignoredCount} 个非公会角色）` : "")
-        : `已备份 ${savedFiles} 个文件，录入 ${result.created} 个公会角色` +
-          (ignoredCount > 0 ? `（忽略 ${ignoredCount} 个非公会角色）` : ""),
+      message:
+        (retrieveOnly
+          ? `仅检索：录入 ${result.created} 个公会角色，**未在服务器保留任何文件**`
+          : `已备份 ${savedFiles} 个文件，录入 ${result.created} 个公会角色`) +
+        (ignoredCount > 0 ? `（忽略 ${ignoredCount} 个非公会角色）` : "") +
+        (conflicts.length > 0
+          ? `（${conflicts.length} 个角色已被他人认领，未导入）`
+          : ""),
     });
   } catch (error) {
     console.error("[profile/wtf] POST:", error);

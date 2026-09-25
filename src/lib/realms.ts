@@ -240,6 +240,20 @@ export async function realmBySlug(slug: string) {
 }
 
 /**
+ * 把任意写法的服务器名归一到**字典里的中文规范名**。
+ *
+ * `Character.server` 是唯一性判定（`@@unique([server, name])`）的一部分，
+ * 若「回音山」与 "Echo Ridge" 并存就会绕过唯一约束 —— 所以写入前必须归一。
+ * 字典查不到时**原样返回**，不丢信息。
+ */
+export async function canonicalRealmName(input: string): Promise<string> {
+  const raw = input?.trim();
+  if (!raw) return raw;
+  const found = await resolveRealm(raw);
+  return found?.name ?? raw;
+}
+
+/**
  * 宽容地把任意写法解析成服务器记录：
  * 中文名、英文 slug、大小写、前后空格、以及英文里的空格（burning blade）
  * 都能识别 —— 因为数据来源五花八门（WTF 是中文，Raider.IO 是 slug）。
