@@ -86,6 +86,11 @@ export default function ProfilePage() {
     }
   };
 
+  // ⚠ **已通过的申请不再展示** —— 审批通过后成员没必要再看一遍「已通过」，
+  //   完整记录在「后台 → 入会审批」里管理员随时可查。
+  //   这里只留需要成员本人关注的状态（待审批 / 需补充信息）。
+  const pendingApplications = applications.filter((a) => a.status !== "APPROVED");
+
   return (
     <div className="page-enter max-w-3xl mx-auto px-4 sm:px-6 py-12">
       <Link href="/" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-wow-gold mb-8">
@@ -129,15 +134,14 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="bg-bg-card border border-border-default rounded p-6 mb-6">
-        <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
-          <FileCheck className="w-4 h-4 text-wow-gold" /> 我的入会申请
-        </h3>
-        {applications.length === 0 ? (
-          <p className="text-sm text-text-muted">暂无申请记录</p>
-        ) : (
+      {/* 只在有「需要成员关注」的申请时才出现整块；已通过的不占位 */}
+      {pendingApplications.length > 0 && (
+        <div className="bg-bg-card border border-border-default rounded p-6 mb-6">
+          <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
+            <FileCheck className="w-4 h-4 text-wow-gold" /> 我的入会申请
+          </h3>
           <div className="space-y-2">
-            {applications.map((a) => (
+            {pendingApplications.map((a) => (
               <div key={a.id} className="bg-bg-secondary/50 rounded p-3 text-sm">
                 <div className="flex items-center justify-between">
                   <div>
@@ -146,12 +150,10 @@ export default function ProfilePage() {
                     </span>
                   </div>
                   <span className={`text-xs ${
-                    a.status === "APPROVED" ? "text-wow-green" :
                     a.status === "REJECTED" ? "text-wow-red" :
                     a.status === "NEEDS_INFO" ? "text-wow-orange" : "text-wow-gold"
                   }`}>
                     {a.status === "PENDING" ? "待审批" :
-                     a.status === "APPROVED" ? "已通过" :
                      a.status === "REJECTED" ? "已拒绝" : "需补充信息"}
                   </span>
                 </div>
@@ -159,12 +161,12 @@ export default function ProfilePage() {
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="bg-bg-card border border-border-default rounded p-6 mb-6">
         <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
-          <Gamepad2 className="w-4 h-4 text-wow-gold" /> 角色管理（WTF 导入）
+          <Gamepad2 className="w-4 h-4 text-wow-gold" /> 我的角色
         </h3>
         <WtfManager
           accounts={wtfAccounts}

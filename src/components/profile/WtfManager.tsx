@@ -388,6 +388,10 @@ export default function WtfManager({
   }
 
   const guildCount = characters.filter((c) => c.guildMemberId).length;
+  /** 当前主力（每位成员**至多一个**，服务端在事务里保证） */
+  const currentMain = characters.find((c) => c.isMain) ?? null;
+  /** 可设为主力的候选：公会名单里的角色（非公会角色没资格当主力） */
+  const mainCandidates = characters.filter((c) => c.guildMemberId);
 
   return (
     <div className="space-y-4">
@@ -616,7 +620,33 @@ export default function WtfManager({
               {characters.length}/{WTF_MAX_CHARACTERS} · 上面的排在前
             </span>
           </p>
+          {currentMain && (
+            <span className="text-xs px-2 py-0.5 rounded border text-wow-gold border-wow-gold/40 bg-wow-gold/10">
+              ★ 主力：{currentMain.name}
+            </span>
+          )}
         </div>
+
+        {characters.length > 0 && (
+          <p className="text-xs text-text-muted mb-3 leading-relaxed">
+            {mainCandidates.length === 0 ? (
+              <>
+                这些角色<strong className="text-text-secondary">都不在公会名单中</strong>
+                ，暂时无法指定主力。
+              </>
+            ) : currentMain ? (
+              <>
+                <strong className="text-text-secondary">每位成员只能有一个主力</strong>
+                —— 换一个会自动取消原来的。想改点角色右侧的「设为主力」。
+              </>
+            ) : (
+              <>
+                <strong className="text-text-secondary">还没指定主力</strong>
+                —— 每位成员只能有一个，点角色右侧的「设为主力」选择。
+              </>
+            )}
+          </p>
+        )}
 
         {characters.length === 0 ? (
           <p className="text-sm text-text-muted py-6 text-center">

@@ -9,6 +9,20 @@ import {
   sendMail,
 } from "@/lib/mailer";
 
+/**
+ * 入会申请列表 —— GET **只服务于个人中心**。
+ *
+ * 后台审批页的数据由服务端组件直接查库（`app/admin/applications/page.tsx`），
+ * 这个接口的 GET 只有 `/profile` 在调，所以它必须**只返回调用者本人**的申请。
+ *
+ * ⚠ 这里曾经写成「返回全站所有人的申请 + include user」，
+ *   于是**任何已通过成员都能看到别人的申请**，网络面板里连邮箱都能看到。
+ *   权限判断 `isMemberOrAboveRole` 挡住的是未登录/待审批者，
+ *   挡不住「成员 A 看成员 B」—— 必须按 userId 收窄。
+ *
+ * 另外**不返回已通过的**：审批通过后成员没必要再看一遍「已通过」，
+ * 完整记录在后台随时可查。
+ */
 export async function GET() {
   try {
     const session = await auth();
@@ -18,8 +32,18 @@ export async function GET() {
     }
 
     const list = await prisma.application.findMany({
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-      include: { user: { select: { id: true, email: true, name: true, status: true, emailVerified: true } } },
+      where: { userId: user.id, status: { not: "APPROVED" } },
+      orderBy: [{ createdAt: "desc" }],
+      // 不收 `user` —— 自己的邮箱没必要随列表回传，也避免再次出现越权字段
+      select: {
+        id: true,
+        status: true,
+        applicationCode: true,
+        characterName: true,
+        officerNote: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     return NextResponse.json({ applications: list });
   } catch (error) {
