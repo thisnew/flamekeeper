@@ -175,31 +175,80 @@ model Page {
 }
 
 model Character {
-  id           String   @id @default(cuid())
-  name         String
-  server       String
+  id            String       @id @default(cuid())
+  name          String
+  server        String
   /// WTF 导入只能拿到「账号/服务器/角色名」，职业专精这些拿不到，
   /// 因此以下四项改为可空 —— 由成员在个人资料里补全，或缺省显示。
-  faction      String?
-  class        String?
-  spec         String?
-  role         String? // Tank | Healer | DPS
-  level        Int      @default(80)
-  itemLevel    Int?
-  mythicScore  Int?
-  raidProgress String?
-  status       String   @default("ACTIVE") // ACTIVE | BENCH | CASUAL | LEFT
-  isPublic     Boolean  @default(true)
+  faction       String?
+  class         String?
+  spec          String?
+  role          String? // Tank | Healer | DPS
+  level         Int          @default(80)
+  itemLevel     Int?
+  mythicScore   Int?
+  raidProgress  String?
+  status        String       @default("ACTIVE") // ACTIVE | BENCH | CASUAL | LEFT
+  isPublic      Boolean      @default(true)
   /// 来自哪个 WTF 账号（形如 NZY900202），手工添加的角色为 null
-  accountName  String?
+  accountName   String?
   /// 个人中心里的角色排序（小的在前）
-  sortOrder    Int      @default(0)
-  userId       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User?    @relation(fields: [userId], references: [id])
+  sortOrder     Int          @default(0)
+  /// 是否为主力。**每人最多一个**（设为新主力会自动取消旧的）。
+  /// 公会名单默认只展示主力。
+  isMain        Boolean      @default(false)
+  /// 命中的公会成员记录（由 Raider.IO 导入）。为 null = 不是公会成员，
+  /// 因此**不能设为主力、也不出现在公会名单里**。
+  guildMemberId String?
+  userId        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  user          User?        @relation(fields: [userId], references: [id])
+  guildMember   GuildMember? @relation(fields: [guildMemberId], references: [id], onDelete: SetNull)
 
   @@index([userId, sortOrder])
+  @@index([guildMemberId])
+  @@index([userId, isMain])
+}
+
+/// 通过 Raider.IO 导入的**公会成员角色** —— 公会名单的权威来源。
+///
+/// 只有这里的角色才算「公会成员」：可以绑定到站内用户、可以设为主力、
+/// 会出现在公会名单里。WTF 导入的角色若匹配不上这里，仍可存为个人角色，
+/// 但**不进公会名单、不能设为主力**。
+///
+/// 实测要点（region=cn / 回音山 / Eternal Flame，257 名成员）：
+///   - 角色名多为**中文**（君少、月影长安），与 WTF 目录名一致，可直接匹配
+///   - Raider.IO 的 realm 是**英文 Title**（"Echo Ridge"），而 WTF 是中文（回音山），
+///     所以额外存一个归一化的 `realmSlug`（echo-ridge）做对齐
+///   - 成员可分布在多个服务器（实测 60 个），故唯一键必须带服务器
+model GuildMember {
+  id            String    @id @default(cuid())
+  /// 角色名（国服多为中文）
+  characterName String
+  /// Raider.IO 返回的服务器名（英文 Title，如 "Echo Ridge"）
+  realmTitle    String
+  /// 归一化服务器 slug（如 echo-ridge）—— 中文名与英文 Title 都往它对齐
+  realmSlug     String
+  region        String    @default("cn")
+  className     String?
+  specName      String?
+  /// TANK | HEALER | DPS（Raider.IO 是大写）
+  specRole      String?
+  /// 公会内部职级（数字，越小越高）
+  rank          Int?
+  guildName     String?
+  profileUrl    String?
+  /// Raider.IO 对该角色的最后抓取时间
+  lastCrawledAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  characters Character[]
+
+  @@unique([region, realmSlug, characterName])
+  @@index([characterName])
+  @@index([region])
 }
 
 /// 成员上传过的 WTF 账号目录。每位成员最多 5 个。

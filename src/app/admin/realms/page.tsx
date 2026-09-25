@@ -5,6 +5,7 @@ import { isAdminRole, isOfficerOrAboveRole } from "@/lib/roles";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import RealmsClient from "@/components/admin/RealmsClient";
+import GuildMembersClient from "@/components/admin/GuildMembersClient";
 
 export const metadata: Metadata = { title: "公会数据更新 - 管理后台" };
 
@@ -41,6 +42,20 @@ export default async function AdminRealmsPage() {
           本字典就是两者之间的桥。其它功能通过 <code>lib/realms.ts</code> 查表。
         </p>
         <RealmsClient canEdit={isAdminRole(user.role)} />
+      </section>
+
+      <section className="mt-12 pt-8 border-t border-border-default">
+        <h2 className="font-display text-lg font-bold text-wow-gold mb-1">
+          公会成员名单（Raider.IO）
+        </h2>
+        <p className="text-xs text-text-muted mb-4">
+          从 Raider.IO 导入的公会成员名单，是「谁是公会成员」的**权威来源**：
+          只有名单里的角色能绑定到站内用户、能设为主力、会出现在公会名单里。
+          WTF 导入时也用它做匹配（服务器 + 角色名）。
+          <br />
+          <span className="text-amber-400">⚠ Raider.IO 调用配额有限，只在需要时手动导入，不要频繁点击。</span>
+        </p>
+        <GuildMembersClient canEdit={isAdminRole(user.role)} />
       </section>
     </div>
   );
