@@ -102,11 +102,14 @@ model Profile {
 model Application {
   id              String   @id @default(cuid())
   userId          String
-  characterName   String
-  server          String
-  faction         String // Alliance | Horde
-  class           String // Warrior | Paladin | Hunter | Rogue | Priest | DK | Shaman | Mage | Warlock | Monk | Druid | DH | Evoker
-  spec            String
+  /// ---- 游戏信息：注册流程不再收集（只填昵称）----
+  /// 改为可空以兼容历史数据，并给将来「申请时可选填」留余地。
+  /// 角色由 WTF 导入或后台名册维护产生，不再从申请里自动创建。
+  characterName   String?
+  server          String?
+  faction         String?
+  class           String?
+  spec            String?
   itemLevel       Int?
   raidExperience  String?
   playableTimes   String?

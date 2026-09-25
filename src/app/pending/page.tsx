@@ -57,6 +57,7 @@ export default async function PendingPage() {
       .findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: "desc" },
+        include: { user: { select: { name: true, email: true } } },
       })
       .catch(() => null),
     prisma.user.findUnique({ where: { id: user.id } }).catch(() => null),
@@ -102,26 +103,19 @@ export default async function PendingPage() {
           <h3 className="font-display text-lg font-bold text-wow-gold mb-4">我的申请</h3>
           <div className="grid sm:grid-cols-2 gap-3 text-sm">
             <div className="bg-bg-secondary/50 rounded p-3">
-              <div className="text-xs text-text-muted">角色名</div>
-              <div className="text-text-primary">{application.characterName}</div>
-            </div>
-            <div className="bg-bg-secondary/50 rounded p-3">
-              <div className="text-xs text-text-muted">职业 · 专精</div>
-              <div className="text-text-primary">
-                {application.class} · {application.spec}
-              </div>
-            </div>
-            <div className="bg-bg-secondary/50 rounded p-3">
-              <div className="text-xs text-text-muted">服务器 · 阵营</div>
-              <div className="text-text-primary">
-                {application.server} · {application.faction === "Alliance" ? "联盟" : "部落"}
-              </div>
+              <div className="text-xs text-text-muted">昵称</div>
+              <div className="text-text-primary">{application.user.name || "（未设昵称）"}</div>
             </div>
             <div className="bg-bg-secondary/50 rounded p-3">
               <div className="text-xs text-text-muted">申请编号</div>
               <div className="text-text-primary font-mono text-xs">{application.applicationCode}</div>
             </div>
           </div>
+
+          {/* 注册只填昵称，不再有角色/服务器等信息；角色在入会后导入 */}
+          <p className="mt-4 text-xs text-text-muted">
+            入会后可到「个人中心 → 角色管理」从游戏 WTF 配置导入你的角色。
+          </p>
           {application.officerNote && (
             <p className="mt-4 text-sm text-wow-orange">审批备注：{application.officerNote}</p>
           )}

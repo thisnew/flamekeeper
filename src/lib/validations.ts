@@ -5,21 +5,17 @@ export const loginSchema = z.object({
   password: z.string().min(6, "密码至少6位"),
 });
 
+/**
+ * 注册：**只填昵称**（+ 邮箱 + 密码）。
+ *
+ * 历史版本要求填角色名/服务器/阵营/职业/专精等游戏信息；运营后确认不必要 ——
+ * 玩家角色改由「个人信息 → WTF 导入」产生（见 add-1），入会时不需要先有角色。
+ */
 export const registerSchema = z.object({
   email: z.string().email("请输入有效的邮箱地址"),
   password: z.string().min(6, "密码至少6位"),
   confirmPassword: z.string(),
   nickname: z.string().min(2, "昵称至少2个字符").max(20, "昵称最长20个字符"),
-  characterName: z.string().min(2, "角色名至少2个字符").max(12),
-  server: z.string().min(1, "请选择服务器"),
-  faction: z.enum(["Alliance", "Horde"], { message: "请选择阵营" }),
-  class: z.string().min(1, "请选择职业"),
-  spec: z.string().min(1, "请输入专精"),
-  itemLevel: z.coerce.number().min(1).optional(),
-  raidExperience: z.string().optional(),
-  playableTimes: z.string().optional(),
-  kookId: z.string().optional(),
-  wechatId: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "两次密码输入不一致",
   path: ["confirmPassword"],

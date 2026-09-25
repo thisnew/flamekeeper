@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { password, nickname, characterName, server, faction, class: wowClass, spec, itemLevel, raidExperience, playableTimes, kookId, wechatId } = validated.data;
+    const { password, nickname } = validated.data;
     const email = validated.data.email.trim().toLowerCase();
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -56,18 +56,9 @@ export async function POST(req: NextRequest) {
     await prisma.application.create({
       data: {
         userId: user.id,
-        characterName,
-        server,
-        faction,
-        class: wowClass,
-        spec,
-        itemLevel: itemLevel || null,
-        raidExperience: raidExperience || null,
-        playableTimes: playableTimes || null,
-        kookId: kookId || null,
-        wechatId: wechatId || null,
         applicationCode,
         status: "PENDING",
+        // 游戏信息不再在注册时收集（只填昵称）—— 角色由 WTF 导入或后台名册产生
       },
     });
 

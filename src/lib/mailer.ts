@@ -283,3 +283,31 @@ export function passwordResetEmailHtml(params: {
      <p style="font-size:13px;color:#9D9D9D;">如果这不是你本人的操作，请忽略本邮件 —— 你的密码<strong>不会</strong>被更改。</p>`
   );
 }
+
+/**
+ * 入会申请被驳回的通知。
+ *
+ * 重要：驳回等同于「注册失败」——账号会被删除、邮箱释放，
+ * 因此邮件里必须把「可以重新注册」讲清楚，否则对方会以为被永久拒绝。
+ */
+export function applicationRejectedEmailHtml(params: {
+  nickname: string;
+  applicationCode?: string | null;
+  reason?: string | null;
+  registerUrl: string;
+}): string {
+  const { nickname, applicationCode, reason, registerUrl } = params;
+  return mailShell(
+    "入会申请未通过",
+    `<p>${nickname ? `${nickname}，你好：` : "你好："}</p>
+     <p>很遗憾，你提交的 Eternal Flame（守焰者）入会申请<b>未通过审核</b>。</p>
+     ${reason ? `<p style="padding:12px 16px;background:#241A1A;border-left:3px solid #C41E3A;border-radius:6px;"><b>审批备注：</b>${reason}</p>` : ""}
+     ${applicationCode ? `<p style="font-size:13px;color:#9D9D9D;">申请编号：${applicationCode}</p>` : ""}
+     <p>本次注册<b>未成功</b>，与该邮箱关联的账号已一并注销，<b>邮箱已释放</b>。</p>
+     <p>如果你认为这是误判，或者想补充材料后重新申请，可以随时<b>用同一个邮箱重新注册</b>：</p>
+     <p style="text-align:center;margin:28px 0;">
+       <a href="${registerUrl}" style="display:inline-block;padding:12px 28px;background:#F0B823;color:#000;font-weight:700;text-decoration:none;border-radius:8px;">重新注册</a>
+     </p>
+     <p style="font-size:13px;color:#9D9D9D;">也可以直接联系公会官员了解具体原因。</p>`
+  );
+}

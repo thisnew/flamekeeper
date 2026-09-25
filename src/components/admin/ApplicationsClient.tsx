@@ -7,16 +7,6 @@ import { cn } from "@/lib/utils";
 
 interface Application {
   id: string;
-  characterName: string;
-  server: string;
-  faction: string;
-  class: string;
-  spec: string;
-  itemLevel: number | null;
-  raidExperience: string | null;
-  playableTimes: string | null;
-  kookId: string | null;
-  wechatId: string | null;
   applicationCode: string;
   status: string;
   officerNote: string | null;
@@ -113,8 +103,10 @@ export default function ApplicationsClient({
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2 flex-wrap">
-                  <span className="font-bold text-lg text-text-primary">{app.characterName}</span>
-                  <span className="text-xs text-text-muted">{app.server}</span>
+                  <span className="font-bold text-lg text-text-primary">
+                    {app.user.name || "（未设昵称）"}
+                  </span>
+                  <span className="text-xs text-text-muted">{app.user.email}</span>
                   <span className={`text-sm font-bold ${status.color}`}>● {status.label}</span>
                   {!app.user.emailVerified && (
                     <span className="text-xs px-2 py-0.5 bg-wow-orange/10 text-wow-orange border border-wow-orange/30 rounded">
@@ -123,7 +115,7 @@ export default function ApplicationsClient({
                   )}
                   {canDelete && (
                     <button
-                      onClick={() => handleDelete(app.id, app.characterName)}
+                      onClick={() => handleDelete(app.id, app.user.name || app.user.email)}
                       disabled={acting === app.id}
                       className="ml-auto flex items-center gap-1 px-2.5 py-1 text-xs border border-wow-red/30 text-wow-red rounded hover:bg-wow-red/10 transition-colors disabled:opacity-50"
                       title="删除该申请记录"
@@ -134,13 +126,8 @@ export default function ApplicationsClient({
                   )}
                 </div>
                 <div className="text-sm text-text-muted space-y-1">
-                  <p>{app.class} · {app.spec} · {app.faction === "Alliance" ? "联盟" : "部落"}</p>
-                  {app.itemLevel && <p>装等：{app.itemLevel}</p>}
-                  {app.raidExperience && <p>经验：{app.raidExperience}</p>}
-                  {app.playableTimes && <p>时间：{app.playableTimes}</p>}
+                  {/* 注册只填昵称，不再有角色/职业/装等等游戏信息 */}
                   <p>邮箱：{app.user.email}</p>
-                  {app.kookId && <p>KOOK ID：{app.kookId}</p>}
-                  {app.wechatId && <p>微信：{app.wechatId}</p>}
                   <p className="text-xs mt-2">申请编号：<code className="text-wow-gold">{app.applicationCode}</code></p>
                   <p className="text-xs">提交时间：{new Date(app.createdAt).toLocaleString("zh-CN")}</p>
                   {app.officerNote && (

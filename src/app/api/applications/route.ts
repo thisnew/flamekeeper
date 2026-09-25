@@ -2,6 +2,12 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isOfficerOrAboveRole, isMemberOrAboveRole } from "@/lib/roles";
+import { appUrl } from "@/lib/app-url";
+import {
+  applicationRejectedEmailHtml,
+  isMailConfigured,
+  sendMail,
+} from "@/lib/mailer";
 
 export async function GET() {
   try {
@@ -49,66 +55,114 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "申请不存在" }, { status: 404 });
     }
 
-    const newStatus =
-      action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "NEEDS_INFO";
+    // 先把要用的信息取出来 —— 驳回会删号，删完就查不到了
+    const targetUserId = application.userId;
+    const targetEmail = application.user.email;
+    const targetName = application.user.name ?? "";
+    const appCode = application.applicationCode;
+    const trimmedNote = note?.trim() || "";
 
     await prisma.$transaction(async (tx) => {
-      await tx.application.update({
-        where: { id: applicationId },
-        data: { status: newStatus, officerNote: note || null },
-      });
-
       if (action === "APPROVE") {
+        await tx.application.update({
+          where: { id: applicationId },
+          data: { status: "APPROVED", officerNote: trimmedNote || null },
+        });
         await tx.user.update({
-          where: { id: application.userId },
+          where: { id: targetUserId },
           data: {
             status: "APPROVED",
             role: application.user.role === "USER" ? "MEMBER" : application.user.role,
-            // The member who approved becomes this user's referrer
+            // 审批人自动成为被审批人的引荐人（管理员可在「成员与会阶」里再调整）
             referredById: application.user.referredById ?? actor.id,
           },
         });
-        const exists = await tx.character.findFirst({
-          where: { userId: application.userId, name: application.characterName },
+        // 注意：**不再**从申请里创建角色。注册只填昵称、没有游戏信息，
+        // 角色改由「个人信息 → WTF 导入」或后台名册维护产生。
+        await tx.auditLog.create({
+          data: {
+            userId: actor.id,
+            action: "APPLICATION_APPROVE",
+            detail: `通过 ${targetEmail} 的入会申请（${appCode}）${
+              trimmedNote ? `：${trimmedNote}` : ""
+            }`,
+          },
         });
-        if (!exists) {
-          await tx.character.create({
-            data: {
-              userId: application.userId,
-              name: application.characterName,
-              server: application.server,
-              faction: application.faction,
-              class: application.class,
-              spec: application.spec,
-              itemLevel: application.itemLevel,
-              role: "DPS",
-              status: "ACTIVE",
-              isPublic: true,
-            },
-          });
-        }
       } else if (action === "REJECT") {
-        await tx.user.update({
-          where: { id: application.userId },
-          data: { status: "REJECTED" },
+        // 驳回 = 注册失败：账号注销、邮箱释放，对方可用同一邮箱重新注册。
+        //
+        // 审计必须挂在**操作者**身上（AuditLog.userId → User 有外键），
+        // 因为目标账号紧接着就要被删除；把对方邮箱写进 detail 留住线索。
+        await tx.auditLog.create({
+          data: {
+            userId: actor.id,
+            action: "APPLICATION_REJECT",
+            detail: `驳回并入会失败，已删除账号 ${targetEmail}（${appCode}）${
+              trimmedNote ? `：${trimmedNote}` : ""
+            }`,
+          },
         });
+        // Application 通过外键 ON DELETE CASCADE 一并清除
+        await tx.user.delete({ where: { id: targetUserId } });
       } else {
+        await tx.application.update({
+          where: { id: applicationId },
+          data: { status: "NEEDS_INFO", officerNote: trimmedNote || null },
+        });
         await tx.user.update({
-          where: { id: application.userId },
+          where: { id: targetUserId },
           data: { status: "NEEDS_INFO" },
         });
+        await tx.auditLog.create({
+          data: {
+            userId: actor.id,
+            action: "APPLICATION_NEEDS_INFO",
+            detail: `要求 ${targetEmail} 补充信息（${appCode}）${
+              trimmedNote ? `：${trimmedNote}` : ""
+            }`,
+          },
+        });
       }
-
-      await tx.auditLog.create({
-        data: {
-          userId: application.userId,
-          action: `APPLICATION_${action}`,
-          detail: note || `Officer action on application ${application.applicationCode}`,
-        },
-      });
     });
 
-    return NextResponse.json({ success: true, message: "操作成功" });
+    // 驳回邮件在事务外发。账号此刻已经删掉了 —— 发信失败也不能回滚，
+    // 只能如实把失败原因回报给审批人。
+    if (action === "REJECT") {
+      if (!(await isMailConfigured())) {
+        return NextResponse.json({
+          success: true,
+          mailSent: false,
+          message: "已驳回并注销账号，但邮件服务未配置，未能通知对方。",
+        });
+      }
+      const res = await sendMail({
+        to: targetEmail,
+        subject: "【Eternal Flame】你的入会申请未通过",
+        html: applicationRejectedEmailHtml({
+          nickname: targetName,
+          applicationCode: appCode,
+          reason: trimmedNote || null,
+          registerUrl: `${appUrl()}/auth/register`,
+        }),
+      });
+      if (!res.ok) {
+        console.error("[applications] 驳回邮件发送失败:", res.error);
+        return NextResponse.json({
+          success: true,
+          mailSent: false,
+          message: `已驳回并注销账号，但通知邮件发送失败：${res.error || "未知原因"}`,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      mailSent: action === "REJECT" ? true : undefined,
+      message:
+        action === "REJECT"
+          ? "已驳回：账号已注销、邮箱已释放，并已邮件通知对方。"
+          : "操作成功",
+    });
   } catch (error) {
     console.error("Applications PATCH:", error);
     return NextResponse.json({ error: "操作失败" }, { status: 500 });
