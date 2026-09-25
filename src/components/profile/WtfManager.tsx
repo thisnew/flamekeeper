@@ -65,6 +65,12 @@ export default function WtfManager({
   const [pickedFiles, setPickedFiles] = useState<File[]>([]);
   /** 被公会名单过滤掉的角色数（严格模式下不展示，只报个数） */
   const [ignoredCount, setIgnoredCount] = useState(0);
+  /**
+   * 是否把 WTF 文件存到服务器备份。
+   *  - true ：走当前流程，文件落盘（可导出恢复）
+   *  - false：**仅检索**，一个字节都不传，只从目录名提取角色
+   */
+  const [backup, setBackup] = useState(true);
 
   // 已存在的角色（防止重复勾选）
   const existingKeys = useMemo(
@@ -247,20 +253,31 @@ export default function WtfManager({
       toast.error("请至少勾选一个角色");
       return;
     }
-    if (pickedFiles.length === 0) {
+    if (backup && pickedFiles.length === 0) {
       toast.error("没有可上传的文件（可能全部超过 1000KB 或扩展名不符）");
       return;
     }
 
     setBusy(true);
     try {
-      // 真正把文件内容传上去 —— 「上传 WTF 内的所有内容，存为个人配置文件」
-      const form = new FormData();
-      for (const f of pickedFiles) form.append("files", f, (f as any).webkitRelativePath || f.name);
-      form.append("characters", JSON.stringify(selectedChars));
-
-      // 注意：不要手动设 Content-Type，浏览器要自己带 multipart boundary
-      const res = await fetch("/api/profile/wtf", { method: "POST", body: form });
+      let res: Response;
+      if (backup) {
+        // ① 备份模式：把文件内容传上去，存为个人配置文件
+        const form = new FormData();
+        for (const f of pickedFiles)
+          form.append("files", f, (f as any).webkitRelativePath || f.name);
+        form.append("characters", JSON.stringify(selectedChars));
+        // 注意：不要手动设 Content-Type，浏览器要自己带 multipart boundary
+        res = await fetch("/api/profile/wtf", { method: "POST", body: form });
+      } else {
+        // ② 仅检索模式：**一个字节的文件都不传**，只交角色清单。
+        //    提取角色本来只需要目录名，把几十 MB 推上去再删纯属浪费。
+        res = await fetch("/api/profile/wtf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ characters: selectedChars }),
+        });
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.error(data.error || "导入失败", { duration: 8000 });
@@ -491,7 +508,48 @@ export default function WtfManager({
             </div>
           ))}
 
-          <div className="flex items-center gap-3 pt-2 border-t border-border-default">
+          <div className="pt-2 border-t border-border-default space-y-3">
+            {/* ★ 是否备份文件到服务器 */}
+            <label className="flex items-start gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={backup}
+                onChange={(e) => setBackup(e.target.checked)}
+                disabled={busy}
+                className="mt-0.5 accent-wow-gold"
+              />
+              <span className="text-xs leading-relaxed">
+                <span className="text-text-secondary font-medium">
+                  同时把 WTF 文件备份到服务器
+                </span>
+                <span className="text-text-muted">
+                  （{pickedFiles.length} 个文件，约{" "}
+                  {Math.max(1, Math.round(
+                    pickedFiles.reduce((s, f) => s + f.size, 0) / 1024
+                  ))}{" "}
+                  KB）
+                </span>
+                <br />
+                <span className="text-text-muted">
+                  {backup ? (
+                    <>
+                      <strong className="text-text-secondary">勾选</strong>
+                      ：走当前流程，文件存进你自己的私有空间，
+                      之后可以在下面下载 / 导出 zip 恢复插件配置。
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-text-secondary">不勾选</strong>
+                      ：<strong className="text-wow-gold">仅检索</strong>
+                      ——一个字节都不上传，只从目录名提取角色并比对公会名单。
+                      适合你只是想把角色登记进名册、不需要备份插件配置的情况。
+                    </>
+                  )}
+                </span>
+              </span>
+            </label>
+
+            <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={doImport}
@@ -499,7 +557,9 @@ export default function WtfManager({
               className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-wow-gold text-black font-bold rounded hover:bg-wow-gold-bright transition-colors disabled:opacity-50"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              导入选中的 {selectedCount} 个角色
+              {backup
+                ? `导入并备份 ${selectedCount} 个角色`
+                : `仅导入 ${selectedCount} 个角色（不备份）`}
             </button>
             <button
               type="button"
@@ -518,6 +578,7 @@ export default function WtfManager({
                 会超过 {WTF_MAX_CHARACTERS} 个角色上限，请少选一些
               </span>
             )}
+            </div>
           </div>
         </div>
       )}

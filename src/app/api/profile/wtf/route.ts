@@ -65,14 +65,21 @@ export async function GET() {
 }
 
 /**
- * 导入：**上传 WTF 文件内容并落盘**，同时按勾选的角色建档。
+ * 导入。支持两种模式，按请求的 Content-Type 区分：
  *
- * multipart/form-data：
- *   files[]     —— 要保存的文件（前端已按 >1000KB / 扩展名 过滤，服务端再验一遍）
- *   characters  —— JSON：用户勾选要录入名册的角色 [{accountName, realm, name}]
+ * ① **备份模式**（`multipart/form-data`）—— 按目前流程：
+ *      files[]     要保存的文件（前端已按 >1000KB / 扩展名 过滤，服务端再验一遍）
+ *      characters  JSON 字符串：勾选要录入的角色 [{accountName, realm, name}]
+ *    文件落盘到私有存储，角色按勾选建档。
  *
- * 文件**全部保存**（需求是「上传 WTF 内的所有内容」），
- * 而角色记录只按勾选创建 —— 目录里的若干角色他可能不想登记进名册。
+ * ② **仅检索模式**（`application/json`，body `{ characters: [...] }`）——
+ *    只比对公会名单并建角色，**完全不收文件**。
+ *
+ *    为什么是「不上传」而不是「上传后清理」：
+ *      - 提取角色只需要**目录名**，文件内容本来是多余的 ——
+ *        WTF 动辄几十 MB，传上去纯属浪费上行带宽与时间
+ *      - 上传后再删存在失败窗口：删不掉就残留，还得靠清理任务兜底
+ *    所以「不传」既更省也更简单，没有理由先传再删。
  */
 export async function POST(req: NextRequest) {
   try {
@@ -80,35 +87,50 @@ export async function POST(req: NextRequest) {
     const user = session?.user as any;
     if (!user?.id) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-    let form: FormData;
-    try {
-      form = await req.formData();
-    } catch {
-      return NextResponse.json(
-        { error: "请求格式不正确（需要 multipart/form-data）" },
-        { status: 400 }
-      );
-    }
+    const contentType = req.headers.get("content-type") || "";
+    const retrieveOnly = contentType.includes("application/json");
 
-    const rawFiles = form.getAll("files").filter((f): f is File => f instanceof File);
-    if (rawFiles.length === 0) {
-      return NextResponse.json({ error: "没有收到任何文件" }, { status: 400 });
+    let rawFiles: File[] = [];
+    let selectedRaw: unknown = [];
+
+    if (retrieveOnly) {
+      // ---- 仅检索：没有文件 ----
+      const body = await req.json().catch(() => ({}));
+      selectedRaw = body?.characters;
+    } else {
+      // ---- 备份：multipart ----
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        return NextResponse.json(
+          { error: "请求格式不正确（需要 multipart/form-data 或 application/json）" },
+          { status: 400 }
+        );
+      }
+      rawFiles = form.getAll("files").filter((f): f is File => f instanceof File);
+      if (rawFiles.length === 0) {
+        return NextResponse.json({ error: "没有收到任何文件" }, { status: 400 });
+      }
+      try {
+        selectedRaw = JSON.parse(String(form.get("characters") || "[]"));
+      } catch {
+        return NextResponse.json({ error: "characters 不是合法 JSON" }, { status: 400 });
+      }
     }
 
     let selected: { accountName: string; realm: string; name: string }[] = [];
-    try {
-      const parsed = JSON.parse(String(form.get("characters") || "[]"));
-      if (Array.isArray(parsed)) {
-        selected = parsed
-          .map((c: any) => ({
-            accountName: cleanName(c?.accountName),
-            realm: cleanName(c?.realm, 32),
-            name: cleanName(c?.name, 32),
-          }))
-          .filter((c) => c.accountName && c.realm && c.name);
-      }
-    } catch {
-      return NextResponse.json({ error: "characters 不是合法 JSON" }, { status: 400 });
+    if (Array.isArray(selectedRaw)) {
+      selected = (selectedRaw as any[])
+        .map((c) => ({
+          accountName: cleanName(c?.accountName),
+          realm: cleanName(c?.realm, 32),
+          name: cleanName(c?.name, 32),
+        }))
+        .filter((c) => c.realm && c.name);
+    }
+    if (selected.length === 0) {
+      return NextResponse.json({ error: "没有选择任何角色" }, { status: 400 });
     }
 
     // ---- 与 Raider.IO 公会名单比对（严格）----
@@ -234,7 +256,9 @@ export async function POST(req: NextRequest) {
       toWrite.push({ storagePath, buffer: Buffer.from(await f.arrayBuffer()) });
     }
 
-    if (toWrite.length === 0) {
+    // 仅检索模式收不到文件（rawFiles 为空），上面的循环天然空转，
+    // 所以这里只在备份模式下要求「确实有文件要存」。
+    if (!retrieveOnly && toWrite.length === 0) {
       return NextResponse.json(
         {
           error: `没有可保存的文件（扩展名不符 ${skipped.badExtension}，超过 1000KB ${skipped.tooLarge}，路径非法 ${skipped.badPath}）`,
@@ -351,25 +375,32 @@ export async function POST(req: NextRequest) {
       data: {
         userId: user.id,
         action: "WTF_IMPORT",
-        detail: `上传 WTF：保存 ${savedFiles} 个文件（${Math.round(
-          savedBytes / 1024
-        )} KB），新增账号 ${newAccountNames.length} 个、公会角色 ${result.created} 个${
-          ignoredCount > 0 ? `，忽略 ${ignoredCount} 个非公会角色` : ""
-        }`,
+        detail: retrieveOnly
+          ? `WTF 仅检索（未存文件）：录入公会角色 ${result.created} 个${
+              ignoredCount > 0 ? `，忽略 ${ignoredCount} 个非公会角色` : ""
+            }`
+          : `上传 WTF：保存 ${savedFiles} 个文件（${Math.round(
+              savedBytes / 1024
+            )} KB），新增账号 ${newAccountNames.length} 个、公会角色 ${result.created} 个${
+              ignoredCount > 0 ? `，忽略 ${ignoredCount} 个非公会角色` : ""
+            }`,
       },
     });
 
     return NextResponse.json({
       success: true,
+      retrieveOnly,
       savedFiles,
       savedBytes,
       createdCharacters: result.created,
       newAccounts: newAccountNames.length,
       ignoredCharacters: ignoredCount,
       skipped,
-      message:
-        `已保存 ${savedFiles} 个文件，录入 ${result.created} 个公会角色` +
-        (ignoredCount > 0 ? `（忽略 ${ignoredCount} 个非公会角色）` : ""),
+      message: retrieveOnly
+        ? `仅检索：录入 ${result.created} 个公会角色，**未在服务器保留任何文件**` +
+          (ignoredCount > 0 ? `（忽略 ${ignoredCount} 个非公会角色）` : "")
+        : `已备份 ${savedFiles} 个文件，录入 ${result.created} 个公会角色` +
+          (ignoredCount > 0 ? `（忽略 ${ignoredCount} 个非公会角色）` : ""),
     });
   } catch (error) {
     console.error("[profile/wtf] POST:", error);
