@@ -11,6 +11,50 @@ class LoginError extends CredentialsSignin {
   }
 }
 
+/**
+ * JWT 回调 —— 每次会话读取都**从数据库刷新** role / status。
+ *
+ * 为什么不能只在登录时写一次：
+ *   官员审批通过后改的是数据库，而 token 里仍是登录那一刻的旧值，导致
+ *     - 个人中心的角色/状态一直显示「待审批」
+ *     - requireMember() 把他一直重定向回 /pending
+ *   直到本人退出重登才恢复。用户报的「审批通过后仍显示未通过」就是这个。
+ *
+ * 代价是每次读会话多一次主键查询（亚毫秒级），对本项目规模完全可接受；
+ * 换来的是权限变更**立即生效**，不用等 token 过期。
+ *
+ * 单独导出是为了可测试 —— 见提交说明里的验证脚本。
+ */
+export async function jwtCallback({ token, user }: { token: any; user?: any }) {
+  // 登录那一刻：把身份写进 token
+  if (user) {
+    token.id = user.id;
+    token.role = user.role;
+    token.status = user.status;
+    return token;
+  }
+
+  // 后续请求：以数据库为准
+  if (token.id) {
+    const db = await prisma.user.findUnique({
+      where: { id: String(token.id) },
+      select: { role: true, status: true },
+    });
+
+    if (db) {
+      token.role = db.role;
+      token.status = db.status;
+    } else {
+      // 账号已不存在（例如入会申请被驳回后删号）—— 立即降级为普通注册用户，
+      // 不让一个已被删除的账号继续持有成员/官员权限
+      token.role = "USER";
+      token.status = "REJECTED";
+    }
+  }
+
+  return token;
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
@@ -64,14 +108,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-        token.status = (user as any).status;
-      }
-      return token;
-    },
+    jwt: jwtCallback,
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
