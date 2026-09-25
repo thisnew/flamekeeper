@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -52,13 +52,21 @@ export default function WtfManager({
     [characters]
   );
 
+  /** 显式设置 webkitdirectory —— JSX 展开透传在小概率下不生效，这里兜底。 */
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.setAttribute("webkitdirectory", "");
+    el.setAttribute("directory", "");
+  }, []);
+
   async function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
 
-    // 前端先过滤：>1000KB 与非法扩展名都在 parseWtfFiles 里静默跳过
+    // 注意：优先用 webkitRelativePath（含目录层级）；为空说明浏览器没给目录结构
     const pickedFiles: PickedFile[] = files.map((f) => ({
-      relativePath: (f as any).webkitRelativePath || f.name,
+      relativePath: (f as any).webkitRelativePath || "",
       size: f.size,
     }));
 
@@ -66,7 +74,29 @@ export default function WtfManager({
     setParsed(result);
 
     if (result.accounts.length === 0) {
-      toast.error("没有解析出任何账号，请确认选择的是 WTF 里的 Account（或账号）目录");
+      // 报错要能定位问题，而不是只说「没解析出来」
+      const s = result.skipped;
+      const parts: string[] = [`共 ${result.totalFiles} 个文件`];
+      if (s.noDirectoryInfo > 0) parts.push(`其中 ${s.noDirectoryInfo} 个没有目录信息`);
+      if (s.badExtension > 0) parts.push(`${s.badExtension} 个扩展名不符`);
+      if (s.tooLarge > 0) parts.push(`${s.tooLarge} 个超过 1000KB`);
+      if (s.unrecognizedPath > 0) parts.push(`${s.unrecognizedPath} 个层级识别失败`);
+
+      const sample = result.samplePaths[0];
+
+      if (s.noDirectoryInfo === result.totalFiles) {
+        toast.error(
+          "浏览器没有提供目录结构，无法识别账号。请改用 Chrome / Edge 重新选择目录。",
+          { duration: 8000 }
+        );
+      } else {
+        toast.error(
+          `没有解析出账号（${parts.join("，")}）。${
+            sample ? `示例路径：${sample}` : ""
+          }`,
+          { duration: 8000 }
+        );
+      }
       setPicked(new Set());
       return;
     }
@@ -204,16 +234,27 @@ export default function WtfManager({
     <div className="space-y-4">
       {/* ---- 说明 ---- */}
       <div className="text-xs text-text-muted leading-relaxed border border-border-default rounded bg-bg-card px-4 py-3">
-        <p className="mb-1">
+        <p className="mb-2">
           浏览器<strong className="text-text-secondary">无法直接读取</strong>本地路径
-          （安全限制），所以需要你手动选择目录。请选择游戏目录下的
-          <code className="mx-1 text-wow-gold">WTF\Account\&lt;你的账号&gt;</code>
-          （例如 <code className="text-wow-gold">…\_retail_\WTF\Account\NZY900202</code>）。
+          （安全限制），所以要你手动选目录。<strong className="text-text-secondary">下面三层任选其一</strong>都可以：
         </p>
+        <ul className="space-y-1 mb-2 list-disc pl-5">
+          <li>
+            <code className="text-wow-gold">…\_retail_\WTF</code>（推荐，最省事）
+          </li>
+          <li>
+            <code className="text-wow-gold">…\_retail_\WTF\Account</code>
+          </li>
+          <li>
+            <code className="text-wow-gold">…\WTF\Account\NZY900202</code>（你的账号目录）
+          </li>
+        </ul>
         <p>
           只会读取其中的<strong className="text-text-secondary">文件夹名</strong>来识别
           账号 / 服务器 / 角色，<strong className="text-text-secondary">不会上传任何文件内容</strong>。
           单个文件超过 1000&nbsp;KB 自动跳过；仅接受 {WTF_ALLOWED_EXTENSIONS.join(" / ")}。
+          请使用 <strong className="text-text-secondary">Chrome / Edge</strong> ——
+          其它浏览器可能不提供目录结构。
         </p>
       </div>
 

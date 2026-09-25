@@ -32,9 +32,21 @@ export type ParsedWtf = {
     characters: { name: string; realm: string }[];
   }[];
   /** 被跳过的文件统计，便于前端如实告知用户 */
-  skipped: { tooLarge: number; badExtension: number; unrecognizedPath: number };
+  skipped: {
+    tooLarge: number;
+    badExtension: number;
+    unrecognizedPath: number;
+    /** 浏览器根本没提供目录结构（webkitdirectory 没生效）的文件数 */
+    noDirectoryInfo: number;
+  };
   /** 收到的文件总数 */
   totalFiles: number;
+  /**
+   * 诊断用：给出的前几条相对路径。
+   * 解析失败时用它一眼看出是「选错了层级」还是「浏览器没给目录结构」，
+   * 而不是只有一句「没有解析出任何账号」让人干瞪眼。
+   */
+  samplePaths: string[];
 };
 
 export function extensionOf(filename: string): string {
@@ -47,31 +59,36 @@ export function isAllowedWtfFile(filename: string): boolean {
 }
 
 /**
- * 从 `webkitRelativePath` 里解析出 账号 / 服务器 / 角色名。
+ * 从 `webkitRelativePath` 里解析出 账号 / 服务器 / 角色。
  *
- * 只认「账号目录后面刚好两层」的结构：
- *   <任意前缀>/Account/<账号>/<服务器>/<角色>/<文件名>
- * 前缀可以是 WTF，也可以直接就是 Account（用户选哪一层都行）。
+ * 用户可能选三种不同的目录，**三种都必须能解析**。
+ * （早期版本只认中间那种，而界面文案偏偏引导用户选第三种，
+ *   结果就是「永远解析不出账号」——这个坑已经踩过，别再退回去。）
+ *
+ *   A) 选 WTF 目录      → WTF/Account/<账号>/<服务器>/<角色>/<文件>
+ *   B) 选 Account 目录  → Account/<账号>/<服务器>/<角色>/<文件>
+ *   C) 选账号目录       → <账号>/<服务器>/<角色>/<文件>
+ *
+ * 规则：先找 "Account" 那一层（大小写不敏感）；找不到就把第 0 段当账号名
+ * —— 这正是情形 C。三种情形下「账号 → 服务器 → 角色」的相对顺序一致。
+ *
+ * 层级不足返回 null：宁可拒绝，也不要把服务器名当成账号名导进去。
  */
 export function parseWtfPath(
   relativePath: string
 ): { accountName: string; realm: string; character: string } | null {
-  // 统一分隔符，去掉首尾斜杠
+  // 统一分隔符，去掉首尾与空段
   const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
-  if (parts.length < 5) return null;
 
-  // 找到 "Account" 那一层；没有就认为第一个目录就是账号目录
-  let accountIdx = parts.findIndex((p) => p.toLowerCase() === "account");
-  if (accountIdx === -1) {
-    // 兼容用户直接选了账号目录本身的情况：webkitRelativePath 会以账号名开头
-    // 此时无法可靠区分，放弃解析（宁可不导入，也不要导错）
-    return null;
-  }
+  const accountIdx = parts.findIndex((p) => p.toLowerCase() === "account");
+  const base = accountIdx === -1 ? 0 : accountIdx + 1;
 
-  // 账号 / 服务器 / 角色 必须都存在于 Account 之后
-  const accountName = parts[accountIdx + 1];
-  const realm = parts[accountIdx + 2];
-  const character = parts[accountIdx + 3];
+  // 账号 / 服务器 / 角色 之后必须还有文件名，故至少 base + 4 段
+  if (parts.length < base + 4) return null;
+
+  const accountName = parts[base];
+  const realm = parts[base + 1];
+  const character = parts[base + 2];
   if (!accountName || !realm || !character) return null;
 
   return { accountName, realm, character };
@@ -85,17 +102,33 @@ type FileLike = { relativePath: string; size: number };
  * 过滤规则（按需求）：
  *   - 单文件 > 1000KB：**静默跳过**（只计数，不提示）
  *   - 扩展名不在白名单：跳过
- *   - 路径解析不出账号/服务器/角色：跳过
+ *   - 路径解析不出账号/服务器/角色：跳过并留样，便于诊断
  */
 export function parseWtfFiles(files: FileLike[]): ParsedWtf {
-  const skipped = { tooLarge: 0, badExtension: 0, unrecognizedPath: 0 };
+  const skipped = {
+    tooLarge: 0,
+    badExtension: 0,
+    unrecognizedPath: 0,
+    noDirectoryInfo: 0,
+  };
   const byAccount = new Map<
     string,
     { accountName: string; realms: Set<string>; characters: Map<string, { name: string; realm: string }> }
   >();
+  const samplePaths: string[] = [];
 
   for (const f of files) {
-    const filename = f.relativePath.replace(/\\/g, "/").split("/").pop() ?? "";
+    const rawPath = (f.relativePath ?? "").trim();
+
+    // 浏览器没给出目录结构 —— 说明 webkitdirectory 没生效，
+    // 或调用方回退成了 file.name。这种情况单独计数，好和「选错层级」区分开。
+    if (!rawPath || !rawPath.includes("/") && !rawPath.includes("\\")) {
+      skipped.noDirectoryInfo++;
+      if (samplePaths.length < 5) samplePaths.push(rawPath || "(空路径)");
+      continue;
+    }
+
+    const filename = rawPath.replace(/\\/g, "/").split("/").pop() ?? "";
 
     if (!isAllowedWtfFile(filename)) {
       skipped.badExtension++;
@@ -106,9 +139,10 @@ export function parseWtfFiles(files: FileLike[]): ParsedWtf {
       continue;
     }
 
-    const parsed = parseWtfPath(f.relativePath);
+    const parsed = parseWtfPath(rawPath);
     if (!parsed) {
       skipped.unrecognizedPath++;
+      if (samplePaths.length < 5) samplePaths.push(rawPath);
       continue;
     }
 
@@ -135,5 +169,5 @@ export function parseWtfFiles(files: FileLike[]): ParsedWtf {
       ),
     }));
 
-  return { accounts, skipped, totalFiles: files.length };
+  return { accounts, skipped, totalFiles: files.length, samplePaths };
 }
