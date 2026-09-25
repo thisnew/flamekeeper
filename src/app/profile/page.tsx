@@ -14,6 +14,7 @@ import { requireMember } from "@/lib/page-guard";
 import { getWtfSummary } from "@/lib/wtf-summary";
 import WtfManager from "@/components/profile/WtfManager";
 import ChangePasswordForm from "./ChangePasswordForm";
+import NicknameForm from "./NicknameForm";
 
 export const metadata = {
   title: "个人中心 | Flamekeeper",
@@ -84,7 +85,7 @@ export default async function ProfilePage() {
             <User className="w-8 h-8 text-wow-gold" />
           </div>
           <div>
-            <h2 className="font-bold text-lg text-text-primary">{user.name || "未设置昵称"}</h2>
+            <NicknameForm initialName={user.name ?? ""} />
             <p className="text-sm text-text-muted flex items-center gap-1">
               <Mail className="w-3.5 h-3.5" /> {user.email}
             </p>

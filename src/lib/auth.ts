@@ -31,6 +31,9 @@ export async function jwtCallback({ token, user }: { token: any; user?: any }) {
     token.id = user.id;
     token.role = user.role;
     token.status = user.status;
+    // 显式写入，不依赖 NextAuth 的隐式拷贝 —— 隐式行为一旦变化，
+    // 页头会莫名其妙地没有昵称，而且很难查
+    token.name = user.name ?? null;
     return token;
   }
 
@@ -38,12 +41,16 @@ export async function jwtCallback({ token, user }: { token: any; user?: any }) {
   if (token.id) {
     const db = await prisma.user.findUnique({
       where: { id: String(token.id) },
-      select: { role: true, status: true },
+      select: { role: true, status: true, name: true },
     });
 
     if (db) {
       token.role = db.role;
       token.status = db.status;
+      // ⚠ `name` 也要刷新。NextAuth 只在**登录那一刻**写入 token.name，之后永不更新 ——
+      //   成员在个人中心改了昵称，页头与名册却一直显示旧名字，非重新登录不可。
+      //   这与 role/status 是同一类问题。
+      token.name = db.name;
     } else {
       // 账号已不存在（例如入会申请被驳回后删号）—— 立即降级为普通注册用户，
       // 不让一个已被删除的账号继续持有成员/官员权限
@@ -114,6 +121,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).status = token.status;
+        // 显式带上 name，别依赖 NextAuth 的默认行为 —— 它取的是 token 里的值，
+        // 而 token 里的 name 由 jwtCallback 每次会话从库里刷新（见上）
+        session.user.name = (token.name as string | null) ?? null;
       }
       return session;
     },
