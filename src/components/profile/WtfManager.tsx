@@ -29,6 +29,9 @@ export type ExistingCharacter = {
   server: string;
   accountName: string | null;
   sortOrder: number;
+  isMain?: boolean;
+  /** 有值 = 是公会成员（可设主力、进公会名单） */
+  guildMemberId?: string | null;
 };
 
 type PickedFile = { relativePath: string; size: number };
@@ -60,6 +63,8 @@ export default function WtfManager({
   const [picked, setPicked] = useState<Set<string>>(new Set()); // "realm/name"
   /** 真正要上传的 File 对象（不是路径）—— 「上传 WTF 内的所有内容」 */
   const [pickedFiles, setPickedFiles] = useState<File[]>([]);
+  /** 被公会名单过滤掉的角色数（严格模式下不展示，只报个数） */
+  const [ignoredCount, setIgnoredCount] = useState(0);
 
   // 已存在的角色（防止重复勾选）
   const existingKeys = useMemo(
@@ -87,7 +92,6 @@ export default function WtfManager({
 
     const result = parseWtfFiles(pickedFiles);
     setParsed(result);
-
     if (result.accounts.length === 0) {
       // 报错要能定位问题，而不是只说「没解析出来」
       const s = result.skipped;
@@ -116,9 +120,65 @@ export default function WtfManager({
       return;
     }
 
+    // ★ 与公会名单比对（严格模式）：只保留公会成员，
+    //   非公会角色**不展示、不上传**。服务器中英对齐依赖服务端的服务器字典，
+    //   所以这一步必须走接口，不能在前端判断。
+    let guildKeys: Set<string> = new Set();
+    try {
+      const allChars = result.accounts.flatMap((a) =>
+        a.characters.map((c) => ({ realm: c.realm, name: c.name }))
+      );
+      if (allChars.length > 0) {
+        const res = await fetch("/api/guild/match", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ characters: allChars }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(d.guildKeys)) {
+          guildKeys = new Set<string>(d.guildKeys);
+        } else if (!res.ok) {
+          toast.error(d.error || "公会名单比对失败", { duration: 8000 });
+          return;
+        }
+      }
+    } catch {
+      toast.error("公会名单比对失败（网络错误）", { duration: 8000 });
+      return;
+    }
+
+    // 过滤成「只有公会成员」的结果
+    const guildOnly: ParsedWtf = {
+      ...result,
+      accounts: result.accounts
+        .map((a) => ({
+          ...a,
+          characters: a.characters.filter((c) => guildKeys.has(`${c.realm}/${c.name}`)),
+        }))
+        .filter((a) => a.characters.length > 0),
+    };
+    const totalParsed = result.accounts.reduce((s, a) => s + a.characters.length, 0);
+    const guildCount = guildOnly.accounts.reduce((s, a) => s + a.characters.length, 0);
+    const ignored = totalParsed - guildCount;
+
+    setParsed(guildOnly);
+    setIgnoredCount(ignored);
+
+    if (guildOnly.accounts.length === 0) {
+      toast.error(
+        `解析出 ${totalParsed} 个角色，但**没有一个是本公会成员**，无法导入。` +
+          "请确认这些角色的服务器与角色名能在公会名单里找到；" +
+          "若名单尚未导入，请管理员到「后台 → 公会数据更新 → 公会成员名单」先导入。",
+        { duration: 12000 }
+      );
+      setPickedFiles([]);
+      setPicked(new Set());
+      return;
+    }
+
     // 默认全选（已在库中的除外）
     const all = new Set<string>();
-    for (const a of result.accounts) {
+    for (const a of guildOnly.accounts) {
       for (const c of a.characters) {
         const key = `${c.realm}/${c.name}`;
         if (!existingKeys.has(key)) all.add(key);
@@ -126,19 +186,39 @@ export default function WtfManager({
     }
     setPicked(all);
 
-    // 只保留真正要上传的文件：扩展名白名单 + 不超过 1000KB（服务端还会再验一次）
+    // 只保留「被选中的公会角色」名下的文件（服务端还会再验一次）
+    const allowedCharKeys = new Set<string>();
+    const allowedAccounts = new Set<string>();
+    for (const a of guildOnly.accounts) {
+      for (const c of a.characters) {
+        allowedCharKeys.add(`${a.accountName}/${c.realm}/${c.name}`);
+        allowedAccounts.add(a.accountName);
+      }
+    }
+
     const uploadable = files.filter((f) => {
-      const name = ((f as any).webkitRelativePath || f.name || "").split(/[/\\]/).pop() || "";
+      const rel = ((f as any).webkitRelativePath || "").replace(/\\/g, "/");
+      const name = rel.split("/").pop() || f.name || "";
       const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
-      return (
-        (["txt", "md5", "lua", "bak", "old", "wtf"] as string[]).includes(ext) &&
-        f.size <= 1000 * 1024
-      );
+      if (!(["txt", "md5", "lua", "bak", "old", "wtf"] as string[]).includes(ext)) return false;
+      if (f.size > 1000 * 1024) return false;
+
+      // 路径形如 <前缀>/Account/<账号>/<服务器>/<角色>/…；只保留命中公会角色的
+      const parts = rel.split("/").filter(Boolean);
+      const accIdx = parts.findIndex((p: string) => p.toLowerCase() === "account");
+      const base = accIdx === -1 ? 0 : accIdx + 1;
+      if (parts.length < base + 4) return false;
+      const account = parts[base];
+      if (!allowedAccounts.has(account)) return false;
+      return allowedCharKeys.has(`${account}/${parts[base + 1]}/${parts[base + 2]}`);
     });
     setPickedFiles(uploadable);
 
     toast.success(
-      `解析出 ${result.accounts.length} 个账号，将上传 ${uploadable.length} 个文件`
+      `公会名单命中 ${guildCount} 个角色` +
+        (ignored > 0 ? `（另有 ${ignored} 个非公会角色已忽略）` : "") +
+        `，将上传 ${uploadable.length} 个文件`,
+      { duration: 6000 }
     );
   }
 
@@ -266,6 +346,31 @@ export default function WtfManager({
       setBusy(false);
     }
   }
+
+  /** 设为主力（每人唯一）。传空表示取消。 */
+  async function setMain(id: string) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/profile/characters", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mainId: id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(d.error || "设置失败");
+        return;
+      }
+      toast.success(d.message || "已设为主力");
+      router.refresh();
+    } catch {
+      toast.error("网络错误");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const guildCount = characters.filter((c) => c.guildMemberId).length;
 
   return (
     <div className="space-y-4">
@@ -471,7 +576,30 @@ export default function WtfManager({
                     {c.accountName}
                   </span>
                 )}
+                {/* 公会成员标记 —— 只有名单里的角色能设主力、进公会名单 */}
+                {c.guildMemberId ? (
+                  c.isMain ? (
+                    <span className="text-xs px-1.5 py-0.5 rounded border text-wow-gold border-wow-gold/40 bg-wow-gold/10">
+                      ★ 主力
+                    </span>
+                  ) : (
+                    <span className="text-xs text-emerald-400">公会成员</span>
+                  )
+                ) : (
+                  <span className="text-xs text-text-muted">非公会名单</span>
+                )}
                 <span className="ml-auto flex items-center gap-1">
+                  {c.guildMemberId && !c.isMain && (
+                    <button
+                      type="button"
+                      onClick={() => setMain(c.id)}
+                      disabled={busy}
+                      className="text-xs px-2 py-1 border border-border-default rounded text-text-muted hover:border-wow-gold hover:text-wow-gold transition-colors disabled:opacity-50"
+                      title="设为主力（会取消当前主力）"
+                    >
+                      设为主力
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => move(i, -1)}

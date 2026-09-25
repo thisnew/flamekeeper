@@ -14,6 +14,7 @@ import {
   safeStoragePath,
   saveWtfFile,
 } from "@/lib/wtf-storage";
+import { canonicalRealmSlug, matchGuildMembersBulk } from "@/lib/raiderio";
 
 /** 名称类字段的统一清洗：去空白、去控制字符、限长。 */
 function cleanName(v: unknown, max = 64): string {
@@ -37,7 +38,16 @@ export async function GET() {
       prisma.character.findMany({
         where: { userId: user.id },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { id: true, name: true, server: true, accountName: true, sortOrder: true },
+        select: {
+          id: true,
+          name: true,
+          server: true,
+          accountName: true,
+          sortOrder: true,
+          isMain: true,
+          // 有 guildMemberId = 是公会成员 → 可设为主力、进公会名单
+          guildMemberId: true,
+        },
       }),
       listWtfFiles(user.id),
     ]);
@@ -101,8 +111,87 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "characters 不是合法 JSON" }, { status: 400 });
     }
 
+    // ---- 与 Raider.IO 公会名单比对（严格）----
+    //
+    // 只有公会名单里的角色才允许导入：非公会角色**不上传文件、不建记录**。
+    // 服务器两侧都经 canonicalRealmSlug 归一（WTF 的中文名 vs API 的英文 Title），
+    // 所以「回音山」能和「Echo Ridge」对上。
+    const memberIdByKey = await matchGuildMembersBulk(
+      selected.map((c) => ({ realm: c.realm, name: c.name }))
+    );
+
+    const guildCharacters = selected.filter((c) =>
+      memberIdByKey.has(`${c.realm}/${c.name}`)
+    );
+    const ignoredCount = selected.length - guildCharacters.length;
+
+    if (guildCharacters.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            `所选 ${selected.length} 个角色都不在公会名单中，无法导入。` +
+            "请确认角色属于本公会（服务器与角色名需与 Raider.IO 名单一致），" +
+            "或先让管理员到「后台 → 公会数据更新」导入公会成员名单。",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 允许落盘的角色（账号/服务器slug/角色名小写）
+    const allowedCharacters = new Set<string>();
+    const allowedAccounts = new Set<string>();
+    for (const c of guildCharacters) {
+      const realmSlug = await canonicalRealmSlug(c.realm);
+      allowedCharacters.add(`${c.accountName}/${realmSlug}/${c.name.toLowerCase()}`);
+      allowedAccounts.add(c.accountName);
+    }
+
+    /** 账号级的保留目录（`Account/<账号>/SavedVariables/…`）。 */
+    const ACCOUNT_LEVEL_DIRS = new Set([
+      "savedvariables",
+      "wtf",
+      "cache",
+      "logs",
+      "errors",
+    ]);
+
+    /**
+     * 这个存储路径是否属于「已选中且是公会成员」的角色？
+     *
+     * 归一化后的结构是 `<账号>/<服务器>/<角色>/…`。
+     * ⚠ 路径里的服务器段是**原始写法**（WTF 里是中文「回音山」），
+     *   而白名单键是归一化后的 slug（echo-ridge）—— 必须也归一化一次再比，
+     *   否则公会角色自己的文件会被全部跳过（这个坑踩过）。
+     *
+     *   - 第二段是 SavedVariables 等 → 账号级文件，只要该账号有导入的角色就保留
+     *   - 否则第二、三段必须命中 allowedCharacters
+     */
+    const realmSlugCache = new Map<string, string>();
+    async function pathRealmSlug(raw: string): Promise<string> {
+      const key = raw.toLowerCase();
+      const hit = realmSlugCache.get(key);
+      if (hit) return hit;
+      const slug = await canonicalRealmSlug(raw);
+      realmSlugCache.set(key, slug);
+      return slug;
+    }
+
+    async function isAllowedPath(storagePath: string): Promise<boolean> {
+      const parts = storagePath.split("/");
+      if (parts.length < 2) return false;
+      const account = parts[0];
+      if (!allowedAccounts.has(account)) return false;
+
+      const seg1 = parts[1] ?? "";
+      if (ACCOUNT_LEVEL_DIRS.has(seg1.toLowerCase())) return true;
+
+      if (parts.length < 3) return false;
+      const seg1Slug = await pathRealmSlug(seg1);
+      return allowedCharacters.has(`${account}/${seg1Slug}/${parts[2].toLowerCase()}`);
+    }
+
     // 服务端独立再验一道：类型与大小不能只信前端
-    const skipped = { badExtension: 0, tooLarge: 0, badPath: 0 };
+    const skipped = { badExtension: 0, tooLarge: 0, badPath: 0, notGuildMember: 0 };
     const toWrite: { storagePath: string; buffer: Buffer }[] = [];
     let total = 0;
 
@@ -122,6 +211,11 @@ export async function POST(req: NextRequest) {
       const storagePath = safeStoragePath(relPath);
       if (!storagePath) {
         skipped.badPath++;
+        continue;
+      }
+      // ★ 只保存公会成员角色的文件
+      if (!(await isAllowedPath(storagePath))) {
+        skipped.notGuildMember++;
         continue;
       }
 
@@ -177,13 +271,24 @@ export async function POST(req: NextRequest) {
     });
     const existingCharKeys = new Set(existingChars.map((c) => `${c.server}/${c.name}`));
 
-    const charsToCreate: { name: string; server: string; accountName: string }[] = [];
+    const charsToCreate: {
+      name: string;
+      server: string;
+      accountName: string;
+      guildMemberId: string;
+    }[] = [];
     const seen = new Set<string>();
-    for (const c of selected) {
+    // 只处理通过公会比对的角色（非公会角色在上一步已被拦掉）
+    for (const c of guildCharacters) {
       const key = `${c.realm}/${c.name}`;
       if (existingCharKeys.has(key) || seen.has(key)) continue;
       seen.add(key);
-      charsToCreate.push({ name: c.name, server: c.realm, accountName: c.accountName });
+      charsToCreate.push({
+        name: c.name,
+        server: c.realm,
+        accountName: c.accountName,
+        guildMemberId: memberIdByKey.get(`${c.realm}/${c.name}`)!,
+      });
     }
 
     if (existingChars.length + charsToCreate.length > WTF_MAX_CHARACTERS) {
@@ -231,6 +336,8 @@ export async function POST(req: NextRequest) {
             name: c.name,
             server: c.server,
             accountName: c.accountName,
+            // 绑定到公会成员记录 —— 「是公会成员」由此判定
+            guildMemberId: c.guildMemberId,
             sortOrder: nextOrder++,
             isPublic: true,
           },
@@ -246,7 +353,9 @@ export async function POST(req: NextRequest) {
         action: "WTF_IMPORT",
         detail: `上传 WTF：保存 ${savedFiles} 个文件（${Math.round(
           savedBytes / 1024
-        )} KB），新增账号 ${newAccountNames.length} 个、角色 ${result.created} 个`,
+        )} KB），新增账号 ${newAccountNames.length} 个、公会角色 ${result.created} 个${
+          ignoredCount > 0 ? `，忽略 ${ignoredCount} 个非公会角色` : ""
+        }`,
       },
     });
 
@@ -256,8 +365,11 @@ export async function POST(req: NextRequest) {
       savedBytes,
       createdCharacters: result.created,
       newAccounts: newAccountNames.length,
+      ignoredCharacters: ignoredCount,
       skipped,
-      message: `已保存 ${savedFiles} 个文件，录入 ${result.created} 个角色`,
+      message:
+        `已保存 ${savedFiles} 个文件，录入 ${result.created} 个公会角色` +
+        (ignoredCount > 0 ? `（忽略 ${ignoredCount} 个非公会角色）` : ""),
     });
   } catch (error) {
     console.error("[profile/wtf] POST:", error);

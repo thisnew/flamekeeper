@@ -3,10 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 /**
- * 角色排序 / 删除（个人中心）。
+ * 角色排序 / 设主力 / 删除（个人中心）。
  *
- * PATCH：把角色按传入的 id 顺序重排（sortOrder 0,1,2…）。
- *        只接受**属于当前用户**的 id，其余忽略 —— 防止越权重排他人角色。
+ * PATCH 支持两种 body：
+ *   { ids: [...] }      重排（只接受属于当前用户的 id，其余忽略）
+ *   { mainId: "..." }   设为**唯一主力**：先把该用户所有角色置为非主力，
+ *                       再置新的。传空字符串表示取消主力。
+ *                       **只有公会成员角色**能设为主力。
  * DELETE：删除自己的某个角色。
  */
 export async function PATCH(req: NextRequest) {
@@ -18,6 +21,52 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
+
+    // ---- 设主力 ----
+    if (body.mainId !== undefined) {
+      const mainId = String(body.mainId || "");
+
+      if (!mainId) {
+        await prisma.character.updateMany({
+          where: { userId: user.id },
+          data: { isMain: false },
+        });
+        return NextResponse.json({ success: true, message: "已取消主力" });
+      }
+
+      const target = await prisma.character.findUnique({
+        where: { id: mainId },
+        select: { userId: true, name: true, guildMemberId: true },
+      });
+      if (!target || target.userId !== user.id) {
+        return NextResponse.json({ error: "角色不存在" }, { status: 404 });
+      }
+      // 非公会成员不能当主力 —— 公会名单里没有他
+      if (!target.guildMemberId) {
+        return NextResponse.json(
+          { error: "只有公会名单中的角色才能设为主力" },
+          { status: 400 }
+        );
+      }
+
+      await prisma.$transaction([
+        prisma.character.updateMany({
+          where: { userId: user.id },
+          data: { isMain: false },
+        }),
+        prisma.character.update({
+          where: { id: mainId },
+          data: { isMain: true },
+        }),
+      ]);
+
+      return NextResponse.json({
+        success: true,
+        message: `已将「${target.name}」设为主力`,
+      });
+    }
+
+    // ---- 重排 ----
     const ids: unknown = body.ids;
     if (!Array.isArray(ids) || ids.some((v) => typeof v !== "string")) {
       return NextResponse.json({ error: "ids 必须是字符串数组" }, { status: 400 });
