@@ -16,6 +16,7 @@ import {
 } from "@/lib/wtf-storage";
 import { canonicalRealmSlug, matchGuildMembersBulk } from "@/lib/raiderio";
 import { canonicalRealmName } from "@/lib/realms";
+import { getWtfSummary } from "@/lib/wtf-summary";
 
 /** 名称类字段的统一清洗：去空白、去控制字符、限长。 */
 function cleanName(v: unknown, max = 64): string {
@@ -30,35 +31,9 @@ export async function GET() {
     const user = session?.user as any;
     if (!user?.id) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-    const [accounts, characters, files] = await Promise.all([
-      prisma.wtfAccount.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "asc" },
-        select: { accountName: true, realmCount: true },
-      }),
-      prisma.character.findMany({
-        where: { userId: user.id },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          name: true,
-          server: true,
-          accountName: true,
-          sortOrder: true,
-          isMain: true,
-          // 有 guildMemberId = 是公会成员 → 可设为主力、进公会名单
-          guildMemberId: true,
-        },
-      }),
-      listWtfFiles(user.id),
-    ]);
-
-    return NextResponse.json({
-      accounts,
-      characters,
-      fileCount: files.length,
-      totalBytes: files.reduce((s, f) => s + f.size, 0),
-    });
+    // 与个人中心的**服务端组件共用一个函数**，避免两边取到不一样的数据
+    const summary = await getWtfSummary(user.id);
+    return NextResponse.json(summary);
   } catch (error) {
     console.error("[profile/wtf] GET:", error);
     return NextResponse.json({ error: "获取角色失败" }, { status: 500 });

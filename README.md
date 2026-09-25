@@ -1159,6 +1159,25 @@ GET https://webapi.blizzard.cn/wow-armory-server/api/server_status?server_type=w
 - **TypeScript strict 模式**：提交前跑 `npx tsc --noEmit`（本仓库要求 0 错误）
 - **优先 Server Components**：仅在需要交互 / 浏览器 API 时加 `"use client"`。
   图表（Recharts）与轮播（Swiper）已隔离到独立客户端组件，避免污染服务端树。
+- **要刷新的数据必须来自服务端 props**（⚠️ 踩过坑，见下）。
+  客户端组件里操作完调 `router.refresh()`，它会重新执行**服务端组件**并重查数据 ——
+  但**前提是数据由服务端组件查好、以 props 传下去**。
+
+  > ❌ **反面教材**：`/profile` 曾写成 `"use client"` + `useState`，
+  > 数据在 `useEffect` 里 `fetch`，依赖数组是 `[user?.id]`。
+  > 子组件（WtfManager）操作完调 `router.refresh()` ——
+  > **effect 依赖没变，根本不会重跑**，界面永远停在旧数据上，
+  > 表现为「设主力 / 删角色 / 导入后点了没反应，得手动刷页」。
+  >
+  > ✅ 正确做法：页面当服务端组件，数据查好传下去（`/profile` 现已如此，
+  > 数据走 `lib/wtf-summary.ts` 的 `getWtfSummary()`，**与 `/api/profile/wtf` 共用同一个函数**，
+  > 避免「接口拿到的」和「页面渲染的」不一致）。
+  >
+  > 自查方法：子组件调 `router.refresh()` 时，问一句
+  > 「页面数据是服务端 props 还是客户端 state？」——后者就是坏的那类。
+  > 另外两种同样可行的做法：组件**自建 `load()`** 在写操作后重取
+  > （`admin/GuildMembersClient`、`admin/RealmsClient` 就是），
+  > 或**直接用响应更新本地 state**（`events/CalendarSubscribe` 轮换订阅链接）。
 - **角色判断用纯函数**：`lib/roles.ts` 不引 `next-auth/react`，保证服务端可直接调用；
   页面级门禁统一走 `lib/page-guard.ts` 的 `requireMember()` / `requireOfficer()` /
   `requireAdmin()`（未登录 → `/auth/login`，非成员 → `/pending`）。
